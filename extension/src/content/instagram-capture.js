@@ -7,7 +7,7 @@
 (function() {
   'use strict';
 
-  const SCRIPT_VERSION = '1.3.9';
+  const SCRIPT_VERSION = '1.4.0';
   const DEBUG = true;
 
   function log(...args) {
@@ -486,66 +486,6 @@
     }
 
     log('No media found');
-    return media;
-  }
-
-    // For images: Find the main content area by looking for the structure
-    // Instagram posts have: header (avatar/username) -> main content (image) -> footer (likes/comments)
-    const header = container.querySelector('header');
-
-    if (!header) {
-      log('No header found in container');
-      return media;
-    }
-
-    // Get all images in the container
-    const allImages = Array.from(container.querySelectorAll('img'));
-
-    // Find images that come AFTER the header in document order and are NOT in the header
-    const headerRect = header.getBoundingClientRect();
-
-    for (const img of allImages) {
-      // Skip if in header
-      if (header.contains(img)) {
-        continue;
-      }
-
-      const src = img.src;
-      if (!src) continue;
-
-      // Must be from Instagram/Facebook CDN
-      if (!src.includes('cdninstagram') && !src.includes('fbcdn')) continue;
-
-      // Skip profile pictures
-      if (src.includes('150x150') || src.includes('44x44') || src.includes('32x32')) continue;
-      if (img.alt?.toLowerCase().includes('profile picture')) continue;
-
-      // Get image position
-      const imgRect = img.getBoundingClientRect();
-
-      // The main image should be BELOW the header (vertically)
-      if (imgRect.top < headerRect.bottom) {
-        continue;
-      }
-
-      // Skip tiny images
-      if (imgRect.width < 100 || imgRect.height < 100) continue;
-
-      // This should be the main post image - take the FIRST one we find after the header
-      if (!seenUrls.has(src)) {
-        log('Found main image after header:', src.substring(0, 60));
-        seenUrls.add(src);
-        media.push({
-          type: 'image',
-          url: src,
-          thumb_url: src,
-          alt_text: img.alt || ''
-        });
-        break; // Take only the first valid image
-      }
-    }
-
-    log('Final media count:', media.length);
     return media;
   }
 
