@@ -749,34 +749,30 @@
     // Track mouse position for elementFromPoint fallback
     document.addEventListener('mousemove', (event) => {
       lastMousePosition = { x: event.clientX, y: event.clientY };
+
+      // Also update hovered tweet on mouse move (more reliable than mouseenter)
+      const element = document.elementFromPoint(event.clientX, event.clientY);
+      if (element) {
+        const tweet = element.closest('article[data-testid="tweet"]') ||
+                      element.closest('article[role="article"]');
+        if (tweet) {
+          lastHoveredTweet = tweet;
+        }
+      }
     }, { passive: true });
 
-    // Use event delegation to track tweet hover
-    document.addEventListener('mouseenter', (event) => {
+    // Use mouseover (bubbles) instead of mouseenter for better event delegation
+    document.addEventListener('mouseover', (event) => {
       const tweet = event.target.closest?.('article[data-testid="tweet"]') ||
                     event.target.closest?.('article[role="article"]');
       if (tweet) {
         lastHoveredTweet = tweet;
+        console.log('[Retweet Filter] Hover tracked on tweet');
       }
-    }, { capture: true, passive: true });
+    }, { passive: true });
 
-    document.addEventListener('mouseleave', (event) => {
-      const tweet = event.target.closest?.('article[data-testid="tweet"]') ||
-                    event.target.closest?.('article[role="article"]');
-      if (tweet && tweet === lastHoveredTweet) {
-        // Don't clear immediately - keep reference for a short time
-        // in case the mouse moved to a child element
-        setTimeout(() => {
-          if (lastHoveredTweet === tweet) {
-            // Check if mouse is still over this tweet
-            const elementUnderMouse = document.elementFromPoint(lastMousePosition.x, lastMousePosition.y);
-            if (!tweet.contains(elementUnderMouse)) {
-              lastHoveredTweet = null;
-            }
-          }
-        }, 100);
-      }
-    }, { capture: true, passive: true });
+    // Don't clear lastHoveredTweet on mouseleave - keep it until another tweet is hovered
+    // This ensures the tweet is still tracked when user clicks the popup button
   }
 
   /**
@@ -888,8 +884,15 @@
 
     // Try to find a hovered tweet using tracked state (since :hover doesn't work with querySelector)
     if (lastHoveredTweet && document.body.contains(lastHoveredTweet)) {
-      console.log('[Retweet Filter] Found tracked hovered tweet');
+      const rect = lastHoveredTweet.getBoundingClientRect();
+      console.log('[Retweet Filter] Using tracked hovered tweet at position:', {
+        top: Math.round(rect.top),
+        bottom: Math.round(rect.bottom),
+        inViewport: rect.top < window.innerHeight && rect.bottom > 0
+      });
       return lastHoveredTweet;
+    } else {
+      console.log('[Retweet Filter] No tracked hover - lastHoveredTweet:', !!lastHoveredTweet);
     }
 
     // Fallback: try to find tweet under current mouse position
@@ -898,6 +901,8 @@
       console.log('[Retweet Filter] Found tweet under mouse cursor');
       return tweetUnderMouse;
     }
+
+    console.log('[Retweet Filter] No hovered tweet found, falling back to viewport detection');
 
     // Try to find a selected/focused tweet
     for (const selector of TWEET_SELECTORS) {
