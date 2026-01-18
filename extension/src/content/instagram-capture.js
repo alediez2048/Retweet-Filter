@@ -7,7 +7,7 @@
 (function() {
   'use strict';
 
-  const SCRIPT_VERSION = '1.3.6';
+  const SCRIPT_VERSION = '1.3.7';
   const DEBUG = true;
 
   function log(...args) {
@@ -536,20 +536,27 @@
     log('Container classes:', container?.className || 'none');
     log('Current URL:', window.location.href);
 
-    const postUrl = extractPostUrl(container);
+    // First try to get username (we'll need it for fallback ID)
+    const username = extractUsername(container);
+    log('Username:', username || 'unknown');
+
+    let postUrl = extractPostUrl(container);
     log('Extracted post URL:', postUrl || 'null');
 
-    if (!postUrl) {
-      log('ERROR: Could not find post URL');
-      return null;
-    }
-
-    const postId = extractPostIdFromUrl(postUrl);
+    let postId = postUrl ? extractPostIdFromUrl(postUrl) : null;
     log('Extracted post ID:', postId || 'null');
 
+    // If no post URL/ID found, generate a fallback ID from username + timestamp
     if (!postId) {
-      log('ERROR: No post ID found in URL:', postUrl);
-      return null;
+      if (username) {
+        // Generate unique ID from username and current time
+        postId = `ig_${username}_${Date.now()}`;
+        postUrl = `https://www.instagram.com/${username}/`;
+        log('Generated fallback ID:', postId);
+      } else {
+        log('ERROR: Cannot generate ID - no username found');
+        return null;
+      }
     }
 
     if (recentlyCaptured.has(postId)) {
@@ -557,7 +564,7 @@
       return null;
     }
 
-    const username = extractUsername(container);
+    // Username already extracted above for fallback ID
     const avatar = extractAvatar(container);
     const caption = extractCaption(container);
     const media = extractMedia(container);
