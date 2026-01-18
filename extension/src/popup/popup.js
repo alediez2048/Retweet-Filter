@@ -317,7 +317,7 @@ function renderResults(results) {
     return `
       <div class="result-item" data-id="${item.id}" data-url="${escapeHtml(item.source_url || '')}">
         ${hasAvatar
-          ? `<img class="result-avatar-img" src="${escapeHtml(item.user_avatar)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="result-avatar" style="display:none">${initials}</div>`
+          ? `<img class="result-avatar-img" src="${escapeHtml(item.user_avatar)}" alt="" data-fallback="${initials}"><div class="result-avatar" style="display:none">${initials}</div>`
           : `<div class="result-avatar">${initials}</div>`
         }
         <div class="result-content">
@@ -332,7 +332,7 @@ function renderResults(results) {
           ${item.media && item.media.length > 0 ? `
             <div class="result-media">
               ${item.media.slice(0, 1).map(m => `
-                <img class="result-media-thumb" src="${escapeHtml(m.thumb_url || m.url)}" alt="${m.type}" onerror="this.style.display='none'">
+                <img class="result-media-thumb" src="${escapeHtml(m.thumb_url || m.url)}" alt="${m.type}" data-hide-on-error="true">
               `).join('')}
               ${item.media.length > 1 ? `<span class="media-count">+${item.media.length - 1}</span>` : ''}
             </div>
@@ -525,6 +525,22 @@ function setupEventListeners() {
       resetCaptureButton();
     });
   }
+
+  // Handle image errors (CSP-compliant alternative to inline onerror)
+  document.addEventListener('error', (e) => {
+    if (e.target.tagName === 'IMG') {
+      // Avatar image error - show fallback initials
+      if (e.target.classList.contains('result-avatar-img')) {
+        e.target.style.display = 'none';
+        const fallback = e.target.nextElementSibling;
+        if (fallback) fallback.style.display = 'flex';
+      }
+      // Media thumbnail error - hide it
+      if (e.target.dataset.hideOnError) {
+        e.target.style.display = 'none';
+      }
+    }
+  }, true);
 
   // Focus search on load
   if (searchInput) searchInput.focus();

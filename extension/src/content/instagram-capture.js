@@ -6,7 +6,7 @@
 (function() {
   'use strict';
 
-  const SCRIPT_VERSION = '1.3.1';
+  const SCRIPT_VERSION = '1.3.2';
 
   // Prevent duplicate injection
   if (window.__instagramFilterInjected === SCRIPT_VERSION) {
@@ -42,28 +42,41 @@
   }
 
   /**
-   * Extract username from the page - multiple strategies
+   * Extract post URL from an article element (for feed posts)
    */
-  function extractUsername() {
-    // Strategy 1: From URL path (works on user profile pages)
+  function extractPostUrlFromArticle(article) {
+    if (!article) return null;
+
+    // Look for post link in the article
+    const timeLink = article.querySelector('a[href*="/p/"], a[href*="/reel/"]');
+    if (timeLink) {
+      const href = timeLink.getAttribute('href');
+      if (href) {
+        return href.startsWith('http') ? href : `https://www.instagram.com${href}`;
+      }
+    }
+
+    // Fallback to window location if on a single post page
+    const url = window.location.href;
+    if (url.match(/\/(p|reel|reels|tv)\/[A-Za-z0-9_-]+/)) {
+      return url.split('?')[0];
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract username from the article - multiple strategies
+   */
+  function extractUsername(article) {
+    // If on a single post page, try URL first
     const pathMatch = window.location.pathname.match(/^\/([a-zA-Z0-9._]+)\/?$/);
     if (pathMatch && !['p', 'reel', 'reels', 'tv', 'explore', 'direct', 'accounts'].includes(pathMatch[1])) {
       return pathMatch[1];
     }
 
-    // Strategy 2: From meta tags
-    const ogUrl = document.querySelector('meta[property="og:url"]');
-    if (ogUrl) {
-      const match = ogUrl.content?.match(/instagram\.com\/([a-zA-Z0-9._]+)/);
-      if (match && !['p', 'reel', 'reels', 'tv'].includes(match[1])) {
-        return match[1];
-      }
-    }
-
-    // Strategy 3: From the post header - look for the first link that's a username
-    const article = document.querySelector('article');
+    // Strategy 1: From the article header links (most reliable for feed)
     if (article) {
-      // Look in header first
       const header = article.querySelector('header');
       if (header) {
         const links = header.querySelectorAll('a[href^="/"]');
@@ -75,23 +88,26 @@
           }
         }
       }
-    }
 
-    // Strategy 4: From any visible username link with specific patterns
-    const allLinks = document.querySelectorAll('a[href^="/"][role="link"]');
-    for (const link of allLinks) {
-      const href = link.getAttribute('href');
-      const match = href?.match(/^\/([a-zA-Z0-9._]+)\/?$/);
-      if (match && !['p', 'reel', 'reels', 'tv', 'explore', 'direct', 'accounts', 'stories'].includes(match[1])) {
-        // Verify this looks like a username (has text content)
-        const text = link.textContent?.trim();
-        if (text && text.length < 50 && !text.includes(' ')) {
-          return match[1];
-        }
+      // Strategy 2: Look for username span in the article
+      const usernameSpan = article.querySelector('header span a[href^="/"]');
+      if (usernameSpan) {
+        const href = usernameSpan.getAttribute('href');
+        const match = href?.match(/^\/([a-zA-Z0-9._]+)\/?$/);
+        if (match) return match[1];
       }
     }
 
-    // Strategy 5: Look for username in the page title
+    // Strategy 3: From meta tags (only for single post pages)
+    const ogUrl = document.querySelector('meta[property="og:url"]');
+    if (ogUrl) {
+      const match = ogUrl.content?.match(/instagram\.com\/([a-zA-Z0-9._]+)/);
+      if (match && !['p', 'reel', 'reels', 'tv'].includes(match[1])) {
+        return match[1];
+      }
+    }
+
+    // Strategy 4: Look for username in the page title
     const title = document.title;
     const titleMatch = title.match(/@([a-zA-Z0-9._]+)/);
     if (titleMatch) {
@@ -104,9 +120,7 @@
   /**
    * Extract display name (different from username)
    */
-  function extractDisplayName(username) {
-    // Try to find the display name near the username
-    const article = document.querySelector('article');
+  function extractDisplayName(username, article) {
     if (!article) return username;
 
     const header = article.querySelector('header');
@@ -130,9 +144,7 @@
   /**
    * Extract avatar URL
    */
-  function extractAvatar() {
-    // Look for profile picture in the header
-    const article = document.querySelector('article');
+  function extractAvatar(article) {
     if (article) {
       const header = article.querySelector('header');
       if (header) {
@@ -142,16 +154,10 @@
         }
         // Fallback: first small image in header (likely avatar)
         const firstImg = header.querySelector('img');
-        if (firstImg && firstImg.src && firstImg.width < 100) {
+        if (firstImg && firstImg.src) {
           return firstImg.src;
         }
       }
-    }
-
-    // Look for any profile-like image
-    const profileImg = document.querySelector('img[alt*="profile picture" i]');
-    if (profileImg) {
-      return profileImg.src;
     }
 
     return '';
@@ -160,8 +166,7 @@
   /**
    * Extract caption/description text
    */
-  function extractCaption() {
-    const article = document.querySelector('article');
+  function extractCaption(article) {
     if (!article) return '';
 
     // Strategy 1: Look for the main caption container
@@ -194,7 +199,7 @@
       }
     }
 
-    // Strategy 2: Look in meta tags
+    // Strategy 2: Look in meta tags (only useful on single post pages)
     const ogDesc = document.querySelector('meta[property="og:description"]');
     if (ogDesc && ogDesc.content) {
       const desc = ogDesc.content;
@@ -212,10 +217,9 @@
   /**
    * Extract media (images/videos) from the current post only
    */
-  function extractMedia() {
+  function extractMedia(article) {
     const media = [];
     const seenUrls = new Set();
-    const article = document.querySelector('article');
 
     if (!article) return media;
 
@@ -274,7 +278,7 @@
   /**
    * Extract engagement metrics
    */
-  function extractMetrics() {
+  function extractMetrics(article) {
     const metrics = { likes: 0, comments: 0, views: 0 };
 
     // Look for like count
@@ -289,7 +293,8 @@
       /(\d[\d,.]*[KMB]?)\s*plays?/i
     ];
 
-    const textContent = document.body.innerText;
+    // Prefer extracting from the specific article
+    const textContent = article ? article.innerText : document.body.innerText;
 
     for (const pattern of likePatterns) {
       const match = textContent.match(pattern);
@@ -329,8 +334,7 @@
   /**
    * Check if user is verified
    */
-  function isVerified() {
-    const article = document.querySelector('article');
+  function isVerified(article) {
     if (!article) return false;
 
     const header = article.querySelector('header');
@@ -370,14 +374,27 @@
   }
 
   /**
-   * Extract complete post data
+   * Extract complete post data from a specific article
    */
-  function extractPostData() {
-    const postUrl = getCurrentPostUrl();
+  function extractPostData(targetArticle = null) {
+    // Find the article to extract from
+    const article = targetArticle || document.querySelector('article');
+
+    if (!article) {
+      console.log('[IG Capture] No article found');
+      return null;
+    }
+
+    // Get post URL - prefer extracting from the article for feed posts
+    let postUrl = extractPostUrlFromArticle(article);
+    if (!postUrl) {
+      postUrl = getCurrentPostUrl();
+    }
+
     const postId = extractPostIdFromUrl(postUrl);
 
     if (!postId) {
-      console.log('[IG Capture] No post ID found in URL');
+      console.log('[IG Capture] No post ID found');
       return null;
     }
 
@@ -387,13 +404,13 @@
       return null;
     }
 
-    const username = extractUsername();
-    const displayName = extractDisplayName(username);
-    const avatar = extractAvatar();
-    const caption = extractCaption();
-    const media = extractMedia();
-    const metrics = extractMetrics();
-    const verified = isVerified();
+    const username = extractUsername(article);
+    const displayName = extractDisplayName(username, article);
+    const avatar = extractAvatar(article);
+    const caption = extractCaption(article);
+    const media = extractMedia(article);
+    const metrics = extractMetrics(article);
+    const verified = isVerified(article);
     const entities = extractEntities(caption);
 
     // Determine post type
@@ -451,6 +468,7 @@
 
     console.log('[IG Capture] Extracted data:', {
       postId,
+      postUrl,
       username,
       displayName,
       hasAvatar: !!avatar,
@@ -463,10 +481,10 @@
   }
 
   /**
-   * Capture the current post
+   * Capture a specific post
    */
-  async function captureCurrentPost() {
-    const postData = extractPostData();
+  async function capturePost(targetArticle = null) {
+    const postData = extractPostData(targetArticle);
 
     if (!postData) {
       console.log('[IG Capture] No post data to capture');
@@ -560,9 +578,12 @@
 
         console.log('[IG Capture] Save button clicked');
 
+        // Find the article containing this save button
+        const article = target.closest('article');
+
         // Delay to allow Instagram to update UI
         setTimeout(() => {
-          captureCurrentPost();
+          capturePost(article);
         }, 200);
       }
     }, true);
@@ -576,7 +597,8 @@
       console.log('[IG Capture] Received message:', message.type);
 
       if (message.type === 'MANUAL_CAPTURE' || message.type === 'MANUAL_CAPTURE_INSTAGRAM') {
-        captureCurrentPost().then(result => {
+        // For manual capture, use the first/only article on page (single post view)
+        capturePost().then(result => {
           sendResponse(result);
         });
         return true;
