@@ -312,18 +312,60 @@ class RetweetDB {
     const record = {
       id: generateId(),
       tweet_id: retweet.tweet_id,
+
+      // Author information (enhanced)
       user_handle: retweet.user_handle || '',
       user_name: retweet.user_name || '',
+      user_avatar: retweet.user_avatar || '',
+      user_verified: retweet.user_verified || false,
+      user_blue_verified: retweet.user_blue_verified || false,
+      user_business: retweet.user_business || false,
+      user_government: retweet.user_government || false,
+
+      // Content
       text: retweet.text || '',
-      quoted_text: retweet.quoted_text || '',
-      quoted_author: retweet.quoted_author || '',
+
+      // Entities
+      urls: retweet.urls || [],
+      hashtags: retweet.hashtags || [],
+      mentions: retweet.mentions || [],
+
+      // Engagement metrics
+      reply_count: retweet.reply_count || 0,
+      retweet_count: retweet.retweet_count || 0,
+      like_count: retweet.like_count || 0,
+      view_count: retweet.view_count || 0,
+      bookmark_count: retweet.bookmark_count || 0,
+
+      // Quote tweet (enhanced)
+      quoted_tweet: retweet.quoted_tweet || null,
+      // Legacy fields for backward compatibility
+      quoted_text: retweet.quoted_text || retweet.quoted_tweet?.text || '',
+      quoted_author: retweet.quoted_author || retweet.quoted_tweet?.author?.handle || '',
+
+      // Media
       media: retweet.media || [],
-      captured_at: new Date().toISOString(),
+
+      // Card/link preview
+      card: retweet.card || null,
+
+      // Reply info
+      is_reply: retweet.is_reply || false,
+      reply_to: retweet.reply_to || null,
+
+      // Timestamps
+      captured_at: retweet.captured_at || new Date().toISOString(),
       original_created_at: retweet.original_created_at || null,
+
+      // Tags
       tags: retweet.tags || [],
       auto_tags: retweet.auto_tags || [],
+
+      // Source
       source: retweet.source || 'browser',
       source_url: retweet.source_url || '',
+
+      // Status
       is_available: true,
       raw_payload: retweet.raw_payload || null,
       synced_at: null
@@ -1150,6 +1192,17 @@ async function handleMessage(message, sender) {
 
 async function captureRetweet(data) {
   try {
+    console.log('[Retweet Filter] Capturing retweet with data:', {
+      tweet_id: data.tweet_id,
+      user_handle: data.user_handle,
+      has_avatar: !!data.user_avatar,
+      avatar_url: data.user_avatar?.substring(0, 50),
+      like_count: data.like_count,
+      retweet_count: data.retweet_count,
+      view_count: data.view_count,
+      user_verified: data.user_verified
+    });
+
     const categories = await db.getCategories();
     const autoTags = suggestTags(data.text + ' ' + (data.quoted_text || ''), categories);
 
@@ -1159,6 +1212,12 @@ async function captureRetweet(data) {
     });
 
     if (retweet) {
+      console.log('[Retweet Filter] Retweet saved successfully:', {
+        id: retweet.id,
+        has_avatar: !!retweet.user_avatar,
+        like_count: retweet.like_count,
+        retweet_count: retweet.retweet_count
+      });
       updateBadge();
       return { success: true, data: retweet };
     } else {
