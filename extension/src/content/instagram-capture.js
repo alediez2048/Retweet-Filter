@@ -7,7 +7,7 @@
 (function() {
   'use strict';
 
-  const SCRIPT_VERSION = '1.3.5';
+  const SCRIPT_VERSION = '1.3.6';
   const DEBUG = true;
 
   function log(...args) {
@@ -40,7 +40,12 @@
    * Instagram uses different structures: article, div with role, etc.
    */
   function findPostContainer(clickedElement) {
-    if (!clickedElement) return null;
+    if (!clickedElement) {
+      log('No clicked element provided');
+      return null;
+    }
+
+    log('Finding container from:', clickedElement.tagName, clickedElement.className);
 
     // Try article first (standard posts)
     let container = clickedElement.closest('article');
@@ -56,6 +61,19 @@
       return container;
     }
 
+    // Try main element
+    container = clickedElement.closest('main');
+    if (container) {
+      // For main, try to find the specific post within
+      const article = container.querySelector('article');
+      if (article) {
+        log('Found article within main');
+        return article;
+      }
+      log('Found main container');
+      return container;
+    }
+
     // Try section (some feed layouts)
     container = clickedElement.closest('section');
     if (container && container.querySelector('video, img[src*="cdninstagram"]')) {
@@ -63,30 +81,26 @@
       return container;
     }
 
-    // For reels, look for the main content div
-    container = clickedElement.closest('div[style*="height"]');
-    if (container && container.querySelector('video')) {
-      log('Found reel container');
-      return container;
-    }
-
-    // Fallback: walk up to find a container with media
+    // Fallback: walk up to find a container with post-like content
     let el = clickedElement.parentElement;
     let depth = 0;
-    while (el && depth < 15) {
-      if (el.querySelector('video') || el.querySelectorAll('img[src*="cdninstagram"]').length > 0) {
-        const hasUsername = el.querySelector('a[href^="/"]:not([href*="/p/"]):not([href*="/reel/"])');
-        if (hasUsername) {
-          log('Found container by walking up', depth, 'levels');
-          return el;
-        }
+    while (el && depth < 20) {
+      // Check if this element has header + media (typical post structure)
+      const hasHeader = el.querySelector('header');
+      const hasMedia = el.querySelector('video, img[src*="cdninstagram"]');
+      const hasPostLink = el.querySelector('a[href*="/p/"], a[href*="/reel/"]');
+
+      if (hasHeader && (hasMedia || hasPostLink)) {
+        log('Found container by walking up', depth, 'levels');
+        return el;
       }
+
       el = el.parentElement;
       depth++;
     }
 
-    log('No container found, using document');
-    return document;
+    log('WARNING: No container found, will try to extract from page');
+    return null;
   }
 
   /**
@@ -102,20 +116,49 @@
 
     // Look for post links in the container
     if (container && container !== document) {
+      // Strategy 1: Direct post links
       const postLinks = container.querySelectorAll('a[href*="/p/"], a[href*="/reel/"], a[href*="/reels/"]');
       for (const link of postLinks) {
         const href = link.getAttribute('href');
-        if (href) {
+        if (href && href.match(/\/(p|reel|reels)\/[A-Za-z0-9_-]+/)) {
           const fullUrl = href.startsWith('http') ? href : `https://www.instagram.com${href}`;
           log('Post URL from container link:', fullUrl);
           return fullUrl;
         }
       }
+
+      // Strategy 2: Time element with parent link
+      const timeEl = container.querySelector('time[datetime]');
+      if (timeEl) {
+        const parentLink = timeEl.closest('a');
+        if (parentLink) {
+          const href = parentLink.getAttribute('href');
+          if (href && href.match(/\/(p|reel|reels)\/[A-Za-z0-9_-]+/)) {
+            const fullUrl = href.startsWith('http') ? href : `https://www.instagram.com${href}`;
+            log('Post URL from time parent:', fullUrl);
+            return fullUrl;
+          }
+        }
+      }
+
+      // Strategy 3: Any link that looks like a post URL
+      const allLinks = container.querySelectorAll('a[href]');
+      for (const link of allLinks) {
+        const href = link.getAttribute('href');
+        if (href && href.match(/\/(p|reel|reels|tv)\/[A-Za-z0-9_-]+/)) {
+          const fullUrl = href.startsWith('http') ? href : `https://www.instagram.com${href}`;
+          log('Post URL from any link:', fullUrl);
+          return fullUrl;
+        }
+      }
     }
 
-    // Look anywhere on the page for the time/date link which goes to the post
+    // Strategy 4: Look in the entire document for time links (fallback)
     const timeLinks = document.querySelectorAll('time[datetime]');
     for (const time of timeLinks) {
+      // Only use if this time element is inside our container
+      if (container && container !== document && !container.contains(time)) continue;
+
       const link = time.closest('a[href*="/p/"], a[href*="/reel/"]');
       if (link) {
         const href = link.getAttribute('href');
@@ -127,8 +170,18 @@
       }
     }
 
-    log('No post URL found');
-    return pageUrl;
+    // Strategy 5: Check meta tags (useful for single post pages)
+    const ogUrl = document.querySelector('meta[property="og:url"]');
+    if (ogUrl && ogUrl.content) {
+      const match = ogUrl.content.match(/\/(p|reel|reels|tv)\/[A-Za-z0-9_-]+/);
+      if (match) {
+        log('Post URL from og:url:', ogUrl.content);
+        return ogUrl.content.split('?')[0];
+      }
+    }
+
+    log('ERROR: No post URL found anywhere');
+    return null; // Return null instead of pageUrl to trigger proper error handling
   }
 
   /**
@@ -479,13 +532,23 @@
    */
   function extractPostData(container) {
     log('=== Starting extraction ===');
-    log('Container:', container?.tagName || 'document');
+    log('Container:', container?.tagName || 'null');
+    log('Container classes:', container?.className || 'none');
+    log('Current URL:', window.location.href);
 
     const postUrl = extractPostUrl(container);
+    log('Extracted post URL:', postUrl || 'null');
+
+    if (!postUrl) {
+      log('ERROR: Could not find post URL');
+      return null;
+    }
+
     const postId = extractPostIdFromUrl(postUrl);
+    log('Extracted post ID:', postId || 'null');
 
     if (!postId) {
-      log('ERROR: No post ID found');
+      log('ERROR: No post ID found in URL:', postUrl);
       return null;
     }
 
