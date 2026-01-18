@@ -7,7 +7,7 @@
 (function() {
   'use strict';
 
-  const SCRIPT_VERSION = '1.3.7';
+  const SCRIPT_VERSION = '1.3.8';
   const DEBUG = true;
 
   function log(...args) {
@@ -361,9 +361,20 @@
     const media = [];
     const seenUrls = new Set();
 
-    // Must have a valid container (not document)
+    // For null container, try to get thumbnail from meta tags
     if (!container || container === document) {
-      log('No valid container for media extraction');
+      log('No valid container, trying meta tags for thumbnail');
+      const ogImage = document.querySelector('meta[property="og:image"]');
+      if (ogImage && ogImage.content) {
+        log('Found og:image:', ogImage.content.substring(0, 60));
+        media.push({
+          type: 'image',
+          url: ogImage.content,
+          thumb_url: ogImage.content,
+          alt_text: 'Video thumbnail'
+        });
+        return media;
+      }
       return media;
     }
 
@@ -372,18 +383,76 @@
     // First, try to find video (takes priority for reels)
     const video = container.querySelector('video');
     if (video) {
+      log('Found video element');
       const poster = video.poster;
       const src = video.src || video.querySelector('source')?.src;
+
+      // Strategy 1: Use video poster attribute
       if (poster) {
-        log('Found video with poster');
+        log('Found video with poster:', poster.substring(0, 60));
         media.push({
           type: 'video',
           url: src || '',
           thumb_url: poster,
           duration: video.duration || 0
         });
-        return media; // Video is the main content
+        return media;
       }
+
+      // Strategy 2: Look for an image near the video (Instagram often overlays images on videos)
+      const videoParent = video.parentElement;
+      if (videoParent) {
+        const nearbyImg = videoParent.querySelector('img[src*="cdninstagram"], img[src*="fbcdn"]');
+        if (nearbyImg && nearbyImg.src) {
+          log('Found image near video:', nearbyImg.src.substring(0, 60));
+          media.push({
+            type: 'video',
+            url: src || '',
+            thumb_url: nearbyImg.src,
+            duration: video.duration || 0
+          });
+          return media;
+        }
+      }
+
+      // Strategy 3: Try og:image meta tag for video thumbnail
+      const ogImage = document.querySelector('meta[property="og:image"]');
+      if (ogImage && ogImage.content) {
+        log('Using og:image for video thumbnail:', ogImage.content.substring(0, 60));
+        media.push({
+          type: 'video',
+          url: src || '',
+          thumb_url: ogImage.content,
+          duration: video.duration || 0
+        });
+        return media;
+      }
+
+      // Strategy 4: Look for any large image in the container that could be the thumbnail
+      const containerImages = container.querySelectorAll('img[src*="cdninstagram"], img[src*="fbcdn"]');
+      for (const img of containerImages) {
+        const imgRect = img.getBoundingClientRect();
+        if (imgRect.width > 200 && imgRect.height > 200) {
+          log('Found large image as video thumbnail:', img.src.substring(0, 60));
+          media.push({
+            type: 'video',
+            url: src || '',
+            thumb_url: img.src,
+            duration: video.duration || 0
+          });
+          return media;
+        }
+      }
+
+      // Even without thumbnail, record that it's a video
+      log('Video found but no thumbnail available');
+      media.push({
+        type: 'video',
+        url: src || '',
+        thumb_url: '',
+        duration: video.duration || 0
+      });
+      return media;
     }
 
     // For images: Find the main content area by looking for the structure
