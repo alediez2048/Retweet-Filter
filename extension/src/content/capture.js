@@ -58,10 +58,21 @@
     };
 
     try {
-      // Find profile image
-      const avatarImg = tweetElement.querySelector('[data-testid="Tweet-User-Avatar"] img');
-      if (avatarImg) {
-        author.avatar_url = avatarImg.src || '';
+      // Find profile image - try multiple selectors
+      const avatarSelectors = [
+        '[data-testid="Tweet-User-Avatar"] img',
+        'div[data-testid="Tweet-User-Avatar"] img',
+        'a[role="link"] img[src*="profile_images"]',
+        'img[src*="profile_images"]'
+      ];
+
+      for (const selector of avatarSelectors) {
+        const avatarImg = tweetElement.querySelector(selector);
+        if (avatarImg && avatarImg.src) {
+          author.avatar_url = avatarImg.src;
+          console.log('[Retweet Filter] Found avatar:', author.avatar_url.substring(0, 50) + '...');
+          break;
+        }
       }
 
       // Find user link and name
@@ -84,12 +95,21 @@
         }
       }
 
-      // Check for verification badges
-      // Blue checkmark (Twitter Blue / X Premium)
-      const blueVerified = tweetElement.querySelector('[data-testid="icon-verified"]');
-      if (blueVerified) {
-        author.is_verified = true;
-        author.is_blue_verified = true;
+      // Check for verification badges - try multiple selectors
+      const verifiedSelectors = [
+        '[data-testid="icon-verified"]',
+        'svg[aria-label*="Verified"]',
+        'svg[data-testid*="verified"]'
+      ];
+
+      for (const selector of verifiedSelectors) {
+        const verifiedBadge = tweetElement.querySelector(selector);
+        if (verifiedBadge) {
+          author.is_verified = true;
+          author.is_blue_verified = true;
+          console.log('[Retweet Filter] Found verified badge');
+          break;
+        }
       }
 
       // Gold checkmark (Business/Organization)
@@ -136,37 +156,52 @@
       // Reply count
       const replyButton = tweetElement.querySelector('[data-testid="reply"]');
       if (replyButton) {
-        const replyText = replyButton.querySelector('[dir="ltr"]')?.textContent;
+        const replyText = replyButton.querySelector('span[data-testid="app-text-transition-container"]')?.textContent ||
+                          replyButton.querySelector('[dir="ltr"]')?.textContent ||
+                          replyButton.textContent;
         metrics.replies = parseMetric(replyText);
       }
 
       // Retweet count
       const retweetButton = tweetElement.querySelector('[data-testid="retweet"]');
       if (retweetButton) {
-        const retweetText = retweetButton.querySelector('[dir="ltr"]')?.textContent;
+        const retweetText = retweetButton.querySelector('span[data-testid="app-text-transition-container"]')?.textContent ||
+                            retweetButton.querySelector('[dir="ltr"]')?.textContent ||
+                            retweetButton.textContent;
         metrics.retweets = parseMetric(retweetText);
       }
 
       // Like count
       const likeButton = tweetElement.querySelector('[data-testid="like"]');
       if (likeButton) {
-        const likeText = likeButton.querySelector('[dir="ltr"]')?.textContent;
+        const likeText = likeButton.querySelector('span[data-testid="app-text-transition-container"]')?.textContent ||
+                         likeButton.querySelector('[dir="ltr"]')?.textContent ||
+                         likeButton.textContent;
         metrics.likes = parseMetric(likeText);
       }
 
-      // View count (analytics)
-      const viewsElement = tweetElement.querySelector('a[href*="/analytics"]');
-      if (viewsElement) {
-        const viewsText = viewsElement.textContent;
-        metrics.views = parseMetric(viewsText);
+      // View count (analytics) - multiple selectors
+      const viewsSelectors = [
+        'a[href*="/analytics"]',
+        '[data-testid="app-text-transition-container"] span'
+      ];
+      for (const selector of viewsSelectors) {
+        const viewsElement = tweetElement.querySelector(selector);
+        if (viewsElement && viewsElement.textContent?.match(/[\d.]+[KMB]?/)) {
+          metrics.views = parseMetric(viewsElement.textContent);
+          if (metrics.views > 0) break;
+        }
       }
 
       // Bookmark count (if visible)
       const bookmarkButton = tweetElement.querySelector('[data-testid="bookmark"]');
       if (bookmarkButton) {
-        const bookmarkText = bookmarkButton.querySelector('[dir="ltr"]')?.textContent;
+        const bookmarkText = bookmarkButton.querySelector('span[data-testid="app-text-transition-container"]')?.textContent ||
+                             bookmarkButton.querySelector('[dir="ltr"]')?.textContent;
         metrics.bookmarks = parseMetric(bookmarkText);
       }
+
+      console.log('[Retweet Filter] Extracted metrics:', metrics);
 
     } catch (error) {
       console.error('[Retweet Filter] Error extracting metrics:', error);
@@ -433,7 +468,7 @@
         }
       }
 
-      return {
+      const result = {
         tweet_id: tweetId,
 
         // Author info (enhanced)
@@ -484,6 +519,17 @@
         source_url: `https://x.com/${author.handle}/status/${tweetId}`,
         source: 'browser'
       };
+
+      // Debug: log extracted data
+      console.log('[Retweet Filter] Full extracted data:', {
+        tweet_id: tweetId,
+        author: author,
+        metrics: metrics,
+        has_media: media.length,
+        has_quote: !!quoteTweet
+      });
+
+      return result;
     } catch (error) {
       console.error('[Retweet Filter] Error extracting tweet data:', error);
       return null;
