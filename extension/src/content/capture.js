@@ -21,6 +21,321 @@
   let lastMousePosition = { x: 0, y: 0 };
 
   /**
+   * Parse metric text (e.g., "1.2K", "15M", "123") to number
+   * @param {string} text - Metric text
+   * @returns {number} Parsed number
+   */
+  function parseMetric(text) {
+    if (!text) return 0;
+    text = text.trim().replace(/,/g, '');
+
+    const multipliers = { 'K': 1000, 'M': 1000000, 'B': 1000000000 };
+    const match = text.match(/^([\d.]+)([KMB])?$/i);
+
+    if (match) {
+      const num = parseFloat(match[1]);
+      const suffix = match[2]?.toUpperCase();
+      return suffix ? Math.round(num * multipliers[suffix]) : num;
+    }
+
+    return parseInt(text, 10) || 0;
+  }
+
+  /**
+   * Extract author information from tweet element
+   * @param {Element} tweetElement - Tweet article element
+   * @returns {Object} Author data
+   */
+  function extractAuthorInfo(tweetElement) {
+    const author = {
+      handle: '',
+      name: '',
+      avatar_url: '',
+      is_verified: false,
+      is_blue_verified: false,
+      is_business: false,
+      is_government: false
+    };
+
+    try {
+      // Find profile image
+      const avatarImg = tweetElement.querySelector('[data-testid="Tweet-User-Avatar"] img');
+      if (avatarImg) {
+        author.avatar_url = avatarImg.src || '';
+      }
+
+      // Find user link and name
+      const userLinks = tweetElement.querySelectorAll('a[href^="/"]');
+      for (const link of userLinks) {
+        const linkHref = link.getAttribute('href');
+        if (linkHref && linkHref.match(/^\/[a-zA-Z0-9_]+$/) && !linkHref.includes('/status/')) {
+          author.handle = linkHref.substring(1);
+
+          // Get display name from the link's text content
+          const spans = link.querySelectorAll('span');
+          for (const span of spans) {
+            const text = span.textContent?.trim();
+            if (text && !text.startsWith('@') && text.length > 0) {
+              author.name = text;
+              break;
+            }
+          }
+          break;
+        }
+      }
+
+      // Check for verification badges
+      // Blue checkmark (Twitter Blue / X Premium)
+      const blueVerified = tweetElement.querySelector('[data-testid="icon-verified"]');
+      if (blueVerified) {
+        author.is_verified = true;
+        author.is_blue_verified = true;
+      }
+
+      // Gold checkmark (Business/Organization)
+      const goldVerified = tweetElement.querySelector('svg[aria-label*="Verified account"]');
+      if (goldVerified) {
+        author.is_verified = true;
+        // Check color to determine type
+        const path = goldVerified.querySelector('path');
+        const fill = path?.getAttribute('fill') || '';
+        if (fill.includes('D4AF37') || fill.includes('gold')) {
+          author.is_business = true;
+        }
+      }
+
+      // Gray checkmark (Government/Official)
+      const grayVerified = tweetElement.querySelector('svg[aria-label*="government"]');
+      if (grayVerified) {
+        author.is_verified = true;
+        author.is_government = true;
+      }
+
+    } catch (error) {
+      console.error('[Retweet Filter] Error extracting author info:', error);
+    }
+
+    return author;
+  }
+
+  /**
+   * Extract engagement metrics from tweet element
+   * @param {Element} tweetElement - Tweet article element
+   * @returns {Object} Metrics data
+   */
+  function extractMetrics(tweetElement) {
+    const metrics = {
+      replies: 0,
+      retweets: 0,
+      likes: 0,
+      views: 0,
+      bookmarks: 0
+    };
+
+    try {
+      // Reply count
+      const replyButton = tweetElement.querySelector('[data-testid="reply"]');
+      if (replyButton) {
+        const replyText = replyButton.querySelector('[dir="ltr"]')?.textContent;
+        metrics.replies = parseMetric(replyText);
+      }
+
+      // Retweet count
+      const retweetButton = tweetElement.querySelector('[data-testid="retweet"]');
+      if (retweetButton) {
+        const retweetText = retweetButton.querySelector('[dir="ltr"]')?.textContent;
+        metrics.retweets = parseMetric(retweetText);
+      }
+
+      // Like count
+      const likeButton = tweetElement.querySelector('[data-testid="like"]');
+      if (likeButton) {
+        const likeText = likeButton.querySelector('[dir="ltr"]')?.textContent;
+        metrics.likes = parseMetric(likeText);
+      }
+
+      // View count (analytics)
+      const viewsElement = tweetElement.querySelector('a[href*="/analytics"]');
+      if (viewsElement) {
+        const viewsText = viewsElement.textContent;
+        metrics.views = parseMetric(viewsText);
+      }
+
+      // Bookmark count (if visible)
+      const bookmarkButton = tweetElement.querySelector('[data-testid="bookmark"]');
+      if (bookmarkButton) {
+        const bookmarkText = bookmarkButton.querySelector('[dir="ltr"]')?.textContent;
+        metrics.bookmarks = parseMetric(bookmarkText);
+      }
+
+    } catch (error) {
+      console.error('[Retweet Filter] Error extracting metrics:', error);
+    }
+
+    return metrics;
+  }
+
+  /**
+   * Extract links, hashtags, and mentions from tweet text element
+   * @param {Element} textElement - Tweet text element
+   * @returns {Object} Entities data
+   */
+  function extractEntities(textElement) {
+    const entities = {
+      urls: [],
+      hashtags: [],
+      mentions: []
+    };
+
+    if (!textElement) return entities;
+
+    try {
+      // Extract URLs
+      const links = textElement.querySelectorAll('a[href]');
+      for (const link of links) {
+        const href = link.getAttribute('href');
+        const text = link.textContent || '';
+
+        if (href?.startsWith('https://t.co/') || href?.includes('http')) {
+          entities.urls.push({
+            url: href,
+            display_url: text,
+            expanded_url: link.title || href
+          });
+        } else if (text.startsWith('#')) {
+          entities.hashtags.push(text.substring(1));
+        } else if (text.startsWith('@')) {
+          entities.mentions.push(text.substring(1));
+        }
+      }
+
+    } catch (error) {
+      console.error('[Retweet Filter] Error extracting entities:', error);
+    }
+
+    return entities;
+  }
+
+  /**
+   * Extract card/link preview data
+   * @param {Element} tweetElement - Tweet article element
+   * @returns {Object|null} Card data or null
+   */
+  function extractCard(tweetElement) {
+    try {
+      const card = tweetElement.querySelector('[data-testid="card.wrapper"]');
+      if (!card) return null;
+
+      const cardLink = card.querySelector('a[href]');
+      const cardImage = card.querySelector('img');
+      const cardTitle = card.querySelector('[data-testid="card.layoutLarge.media"] + div span') ||
+                        card.querySelector('span[dir="ltr"]');
+
+      return {
+        url: cardLink?.href || '',
+        title: cardTitle?.textContent || '',
+        image_url: cardImage?.src || '',
+        domain: cardLink?.href ? new URL(cardLink.href).hostname : ''
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Extract full quote tweet data
+   * @param {Element} tweetElement - Parent tweet element
+   * @returns {Object|null} Quoted tweet data or null
+   */
+  function extractQuoteTweet(tweetElement) {
+    try {
+      // Quote tweet container
+      const quoteTweetContainer = tweetElement.querySelector('[data-testid="quoteTweet"]') ||
+                                   tweetElement.querySelector('div[role="link"][tabindex="0"]');
+
+      if (!quoteTweetContainer) return null;
+
+      // Check if it's actually a quote tweet (has user info inside)
+      const quoteUserLink = quoteTweetContainer.querySelector('a[href^="/"]');
+      if (!quoteUserLink) return null;
+
+      const quotedData = {
+        author: {
+          handle: '',
+          name: '',
+          avatar_url: '',
+          is_verified: false
+        },
+        text: '',
+        media: [],
+        tweet_id: '',
+        original_created_at: null
+      };
+
+      // Extract quoted author
+      const href = quoteUserLink.getAttribute('href');
+      if (href && href.match(/^\/[a-zA-Z0-9_]+$/)) {
+        quotedData.author.handle = href.substring(1);
+      }
+
+      // Author name
+      const nameSpan = quoteUserLink.querySelector('span');
+      if (nameSpan) {
+        quotedData.author.name = nameSpan.textContent || '';
+      }
+
+      // Author avatar
+      const quoteAvatar = quoteTweetContainer.querySelector('img[src*="profile_images"]');
+      if (quoteAvatar) {
+        quotedData.author.avatar_url = quoteAvatar.src;
+      }
+
+      // Verified status
+      if (quoteTweetContainer.querySelector('[data-testid="icon-verified"]')) {
+        quotedData.author.is_verified = true;
+      }
+
+      // Quote text
+      const quoteTextEl = quoteTweetContainer.querySelector('[data-testid="tweetText"]');
+      quotedData.text = quoteTextEl?.textContent || '';
+
+      // Quote media
+      const quoteImages = quoteTweetContainer.querySelectorAll('[data-testid="tweetPhoto"] img');
+      for (const img of quoteImages) {
+        const src = img.getAttribute('src');
+        if (src && !src.includes('profile_images')) {
+          quotedData.media.push({
+            type: 'image',
+            url: src,
+            thumb_url: src
+          });
+        }
+      }
+
+      // Quote tweet ID from link
+      const quoteTweetLink = quoteTweetContainer.querySelector('a[href*="/status/"]');
+      if (quoteTweetLink) {
+        const quoteHref = quoteTweetLink.getAttribute('href');
+        const idMatch = quoteHref?.match(/\/status\/(\d+)/);
+        if (idMatch) {
+          quotedData.tweet_id = idMatch[1];
+        }
+      }
+
+      // Quote timestamp
+      const quoteTime = quoteTweetContainer.querySelector('time');
+      if (quoteTime) {
+        quotedData.original_created_at = quoteTime.getAttribute('datetime');
+      }
+
+      return quotedData;
+    } catch (error) {
+      console.error('[Retweet Filter] Error extracting quote tweet:', error);
+      return null;
+    }
+  }
+
+  /**
    * Extract tweet data from a tweet article element
    * @param {Element} tweetElement - Tweet article element
    * @returns {Object|null} Tweet data or null
@@ -39,82 +354,134 @@
 
       const tweetId = tweetIdMatch[1];
 
-      // Get user info
-      const userLinks = tweetElement.querySelectorAll('a[href^="/"]');
-      let userHandle = '';
-      let userName = '';
+      // Extract author information
+      const author = extractAuthorInfo(tweetElement);
 
-      for (const link of userLinks) {
-        const linkHref = link.getAttribute('href');
-        if (linkHref && linkHref.match(/^\/[a-zA-Z0-9_]+$/) && !linkHref.includes('/status/')) {
-          userHandle = linkHref.substring(1);
-          const nameSpan = link.querySelector('span');
-          if (nameSpan) {
-            userName = nameSpan.textContent || '';
-          }
-          break;
-        }
-      }
-
-      // Get tweet text
+      // Get tweet text element and content
       const tweetTextElement = tweetElement.querySelector('[data-testid="tweetText"]');
       const text = tweetTextElement ? tweetTextElement.textContent : '';
 
-      // Check for quote tweet
-      let quotedText = '';
-      let quotedAuthor = '';
-      const quoteTweet = tweetElement.querySelector('[data-testid="tweet"] [data-testid="tweet"]');
-      if (quoteTweet) {
-        const quoteTextEl = quoteTweet.querySelector('[data-testid="tweetText"]');
-        quotedText = quoteTextEl ? quoteTextEl.textContent : '';
+      // Extract entities (urls, hashtags, mentions)
+      const entities = extractEntities(tweetTextElement);
 
-        const quoteAuthorLink = quoteTweet.querySelector('a[href^="/"]');
-        if (quoteAuthorLink) {
-          const quoteHref = quoteAuthorLink.getAttribute('href');
-          if (quoteHref && quoteHref.match(/^\/[a-zA-Z0-9_]+$/)) {
-            quotedAuthor = quoteHref.substring(1);
-          }
-        }
-      }
+      // Extract engagement metrics
+      const metrics = extractMetrics(tweetElement);
+
+      // Extract quote tweet data
+      const quoteTweet = extractQuoteTweet(tweetElement);
 
       // Get media
       const media = [];
+
+      // Images
       const images = tweetElement.querySelectorAll('[data-testid="tweetPhoto"] img');
       for (const img of images) {
         const src = img.getAttribute('src');
         if (src && !src.includes('profile_images')) {
+          // Try to get full-size image URL
+          let fullUrl = src;
+          if (src.includes('?')) {
+            fullUrl = src.split('?')[0] + '?format=jpg&name=large';
+          }
           media.push({
             type: 'image',
-            url: src,
-            thumb_url: src
+            url: fullUrl,
+            thumb_url: src,
+            alt_text: img.getAttribute('alt') || ''
           });
         }
       }
 
+      // Videos
       const videos = tweetElement.querySelectorAll('[data-testid="videoPlayer"]');
       for (const video of videos) {
-        const poster = video.querySelector('video')?.getAttribute('poster');
+        const videoEl = video.querySelector('video');
+        const poster = videoEl?.getAttribute('poster');
+        const src = videoEl?.querySelector('source')?.getAttribute('src');
         media.push({
           type: 'video',
-          url: '', // Video URLs require additional extraction
-          thumb_url: poster || ''
+          url: src || '',
+          thumb_url: poster || '',
+          duration: videoEl?.duration || 0
         });
       }
+
+      // GIFs
+      const gifs = tweetElement.querySelectorAll('[data-testid="videoPlayer"] video[poster*="tweet_video_thumb"]');
+      for (const gif of gifs) {
+        media.push({
+          type: 'gif',
+          url: gif.querySelector('source')?.src || '',
+          thumb_url: gif.poster || ''
+        });
+      }
+
+      // Extract card/link preview
+      const card = extractCard(tweetElement);
 
       // Get timestamp
       const timeElement = tweetElement.querySelector('time');
       const originalCreatedAt = timeElement ? timeElement.getAttribute('datetime') : null;
 
+      // Check if this is a reply
+      const isReply = tweetElement.querySelector('[data-testid="tweet"] a[href*="/status/"]')?.closest('[data-testid="tweet"]') !== tweetElement;
+      let replyTo = null;
+      if (isReply) {
+        const replyingTo = tweetElement.querySelector('a[href^="/"][role="link"]');
+        if (replyingTo && replyingTo.textContent?.includes('@')) {
+          replyTo = replyingTo.textContent.replace('@', '');
+        }
+      }
+
       return {
         tweet_id: tweetId,
-        user_handle: userHandle,
-        user_name: userName,
+
+        // Author info (enhanced)
+        user_handle: author.handle,
+        user_name: author.name,
+        user_avatar: author.avatar_url,
+        user_verified: author.is_verified,
+        user_blue_verified: author.is_blue_verified,
+        user_business: author.is_business,
+        user_government: author.is_government,
+
+        // Content
         text: text,
-        quoted_text: quotedText,
-        quoted_author: quotedAuthor,
+
+        // Entities
+        urls: entities.urls,
+        hashtags: entities.hashtags,
+        mentions: entities.mentions,
+
+        // Engagement metrics
+        reply_count: metrics.replies,
+        retweet_count: metrics.retweets,
+        like_count: metrics.likes,
+        view_count: metrics.views,
+        bookmark_count: metrics.bookmarks,
+
+        // Quote tweet (enhanced)
+        quoted_tweet: quoteTweet,
+        // Legacy fields for backward compatibility
+        quoted_text: quoteTweet?.text || '',
+        quoted_author: quoteTweet?.author?.handle || '',
+
+        // Media
         media: media,
+
+        // Card/link preview
+        card: card,
+
+        // Reply info
+        is_reply: isReply,
+        reply_to: replyTo,
+
+        // Timestamps
         original_created_at: originalCreatedAt,
-        source_url: `https://x.com/${userHandle}/status/${tweetId}`,
+        captured_at: new Date().toISOString(),
+
+        // Source
+        source_url: `https://x.com/${author.handle}/status/${tweetId}`,
         source: 'browser'
       };
     } catch (error) {
