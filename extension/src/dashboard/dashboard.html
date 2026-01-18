@@ -231,7 +231,7 @@
             <h3>X Data Export</h3>
             <p>Import from your X/Twitter data archive (tweets.js file)</p>
             <input type="file" id="archiveFile" accept=".js,.json" hidden>
-            <button class="import-btn" onclick="document.getElementById('archiveFile').click()">
+            <button class="import-btn" id="archiveFileBtn">
               Select Archive File
             </button>
           </div>
@@ -244,7 +244,7 @@
             <h3>CSV Import</h3>
             <p>Import from a CSV file with tweet data</p>
             <input type="file" id="csvFile" accept=".csv" hidden>
-            <button class="import-btn" onclick="document.getElementById('csvFile').click()">
+            <button class="import-btn" id="csvFileBtn">
               Select CSV File
             </button>
           </div>

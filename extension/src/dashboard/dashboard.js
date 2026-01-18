@@ -300,6 +300,25 @@ function setupEventListeners() {
   if (csvFileInput) csvFileInput.addEventListener('change', handleCsvImport);
   if (importNitterBtn) importNitterBtn.addEventListener('click', handleNitterImport);
 
+  // File input trigger buttons (CSP-compliant alternative to inline onclick)
+  const archiveFileBtn = document.getElementById('archiveFileBtn');
+  const csvFileBtn = document.getElementById('csvFileBtn');
+  if (archiveFileBtn && archiveFileInput) {
+    archiveFileBtn.addEventListener('click', () => archiveFileInput.click());
+  }
+  if (csvFileBtn && csvFileInput) {
+    csvFileBtn.addEventListener('click', () => csvFileInput.click());
+  }
+
+  // Handle image errors (CSP-compliant alternative to inline onerror)
+  document.addEventListener('error', (e) => {
+    if (e.target.tagName === 'IMG' && e.target.classList.contains('result-avatar-img')) {
+      e.target.style.display = 'none';
+      const fallback = e.target.nextElementSibling;
+      if (fallback) fallback.style.display = 'flex';
+    }
+  }, true);
+
   // Settings
   const syncEnabledCheckbox = document.getElementById('syncEnabled');
   const exportDataBtn = document.getElementById('exportData');
@@ -614,7 +633,7 @@ function renderResults() {
         <input type="checkbox" class="result-checkbox" ${isSelected ? 'checked' : ''}>
         <div class="result-item-header">
           ${hasAvatar
-            ? `<img class="result-avatar-img" src="${escapeHtml(item.user_avatar)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="result-avatar" style="display:none">${initials}</div>`
+            ? `<img class="result-avatar-img" src="${escapeHtml(item.user_avatar)}" alt="" data-fallback="${initials}"><div class="result-avatar" style="display:none">${initials}</div>`
             : `<div class="result-avatar">${initials}</div>`
           }
           <div class="result-content">
@@ -1239,15 +1258,21 @@ function openDetailModal(id) {
     ` : ''}
     <div style="display:flex;gap:12px">
       <a href="${escapeHtml(retweet.source_url || '#')}" target="_blank" class="primary-btn">Open on X</a>
-      <button class="secondary-btn" onclick="document.getElementById('detailModal').hidden=true; window.dashboardOpenTagModal('${id}')">Edit Tags</button>
+      <button class="secondary-btn" id="editTagsBtn" data-id="${id}">Edit Tags</button>
     </div>
   `;
 
   modal.hidden = false;
-}
 
-// Expose for inline handler
-window.dashboardOpenTagModal = openTagModal;
+  // Add event listener for edit tags button
+  const editTagsBtn = document.getElementById('editTagsBtn');
+  if (editTagsBtn) {
+    editTagsBtn.addEventListener('click', () => {
+      modal.hidden = true;
+      openTagModal(editTagsBtn.dataset.id);
+    });
+  }
+}
 
 function closeDetailModal() {
   const modal = document.getElementById('detailModal');
