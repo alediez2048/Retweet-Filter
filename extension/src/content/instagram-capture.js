@@ -7,7 +7,7 @@
 (function() {
   'use strict';
 
-  const SCRIPT_VERSION = '1.3.4';
+  const SCRIPT_VERSION = '1.3.5';
   const DEBUG = true;
 
   function log(...args) {
@@ -301,29 +301,23 @@
   }
 
   /**
-   * Extract media from container - be very restrictive to get only the main post media
+   * Extract media from container - be VERY restrictive to get only the main post media
+   * Strategy: Find the first large image/video that comes AFTER the header in DOM order
    */
   function extractMedia(container) {
     const media = [];
     const seenUrls = new Set();
-    const searchRoot = container && container !== document ? container : document;
 
-    log('Extracting media from container:', searchRoot.tagName);
+    // Must have a valid container (not document)
+    if (!container || container === document) {
+      log('No valid container for media extraction');
+      return media;
+    }
 
-    // Find the header to exclude it
-    const header = searchRoot.querySelector('header');
+    log('Extracting media from:', container.tagName);
 
-    // Strategy 1: Look for the main media container (Instagram uses specific structures)
-    // The main image/video is usually in a div that's a direct child after header
-    const mainMediaSelectors = [
-      'div[role="button"] > div > img',  // Main post image
-      'div[style*="padding-bottom"] img', // Responsive image container
-      'div > div > div > img[style*="object-fit"]', // Another common pattern
-      'video' // Videos
-    ];
-
-    // First, try to find video (takes priority)
-    const video = searchRoot.querySelector('video');
+    // First, try to find video (takes priority for reels)
+    const video = container.querySelector('video');
     if (video) {
       const poster = video.poster;
       const src = video.src || video.querySelector('source')?.src;
@@ -335,25 +329,30 @@
           thumb_url: poster,
           duration: video.duration || 0
         });
-        seenUrls.add(poster);
+        return media; // Video is the main content
       }
     }
 
-    // If we have video, that's the main content - return it
-    if (media.length > 0) {
-      log('Returning video as main media');
+    // For images: Find the main content area by looking for the structure
+    // Instagram posts have: header (avatar/username) -> main content (image) -> footer (likes/comments)
+    const header = container.querySelector('header');
+
+    if (!header) {
+      log('No header found in container');
       return media;
     }
 
-    // For images, be very selective - find the MAIN post image only
-    // Look for the largest image that's not in the header and not a profile pic
-    let bestImage = null;
-    let bestSize = 0;
+    // Get all images in the container
+    const allImages = Array.from(container.querySelectorAll('img'));
 
-    const allImages = searchRoot.querySelectorAll('img');
+    // Find images that come AFTER the header in document order and are NOT in the header
+    const headerRect = header.getBoundingClientRect();
+
     for (const img of allImages) {
-      // Skip header images
-      if (header && header.contains(img)) continue;
+      // Skip if in header
+      if (header.contains(img)) {
+        continue;
+      }
 
       const src = img.src;
       if (!src) continue;
@@ -361,37 +360,33 @@
       // Must be from Instagram/Facebook CDN
       if (!src.includes('cdninstagram') && !src.includes('fbcdn')) continue;
 
-      // Skip profile pictures and small images
+      // Skip profile pictures
       if (src.includes('150x150') || src.includes('44x44') || src.includes('32x32')) continue;
       if (img.alt?.toLowerCase().includes('profile picture')) continue;
 
-      // Calculate size
-      const width = img.naturalWidth || img.width || img.getBoundingClientRect().width || 0;
-      const height = img.naturalHeight || img.height || img.getBoundingClientRect().height || 0;
-      const size = width * height;
+      // Get image position
+      const imgRect = img.getBoundingClientRect();
+
+      // The main image should be BELOW the header (vertically)
+      if (imgRect.top < headerRect.bottom) {
+        continue;
+      }
 
       // Skip tiny images
-      if (width < 150 || height < 150) continue;
+      if (imgRect.width < 100 || imgRect.height < 100) continue;
 
-      log('Candidate image:', { width, height, size, src: src.substring(0, 60) });
-
-      // Keep track of the largest image
-      if (size > bestSize) {
-        bestSize = size;
-        bestImage = img;
+      // This should be the main post image - take the FIRST one we find after the header
+      if (!seenUrls.has(src)) {
+        log('Found main image after header:', src.substring(0, 60));
+        seenUrls.add(src);
+        media.push({
+          type: 'image',
+          url: src,
+          thumb_url: src,
+          alt_text: img.alt || ''
+        });
+        break; // Take only the first valid image
       }
-    }
-
-    // Use only the best (largest) image
-    if (bestImage && !seenUrls.has(bestImage.src)) {
-      log('Selected best image:', bestImage.src.substring(0, 60));
-      seenUrls.add(bestImage.src);
-      media.push({
-        type: 'image',
-        url: bestImage.src,
-        thumb_url: bestImage.src,
-        alt_text: bestImage.alt || ''
-      });
     }
 
     log('Final media count:', media.length);
