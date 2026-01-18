@@ -645,7 +645,7 @@ body {
 /* Results List - Card Only View */
 .results-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
 
@@ -1593,6 +1593,12 @@ body {
 }
 
 /* Responsive */
+@media (max-width: 1400px) {
+  .results-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 900px) {
   .results-list {
     grid-template-columns: 1fr;
