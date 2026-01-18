@@ -7,7 +7,7 @@
   'use strict';
 
   // Version for detecting updates
-  const SCRIPT_VERSION = '1.1.1';
+  const SCRIPT_VERSION = '1.1.2';
 
   // Avoid duplicate injection, but allow re-injection if version changed
   if (window.__retweetFilterInjected === SCRIPT_VERSION) {
@@ -88,24 +88,112 @@
         }
       }
 
-      // Find user link and name
-      const userLinks = tweetElement.querySelectorAll('a[href^="/"]');
-      for (const link of userLinks) {
-        const linkHref = link.getAttribute('href');
-        if (linkHref && linkHref.match(/^\/[a-zA-Z0-9_]+$/) && !linkHref.includes('/status/')) {
-          author.handle = linkHref.substring(1);
+      // Strategy 1: Find the User-Name container which has both display name and @handle
+      const userNameContainer = tweetElement.querySelector('[data-testid="User-Name"]');
+      if (userNameContainer) {
+        // The User-Name container typically has links to the user profile
+        // First link usually contains the display name, second has the @handle
+        const links = userNameContainer.querySelectorAll('a[href^="/"]');
 
-          // Get display name from the link's text content
-          const spans = link.querySelectorAll('span');
-          for (const span of spans) {
-            const text = span.textContent?.trim();
-            if (text && !text.startsWith('@') && text.length > 0) {
-              author.name = text;
+        for (const link of links) {
+          const href = link.getAttribute('href');
+          // Skip non-user links
+          if (!href || href.includes('/status/') || href.includes('/photo/')) continue;
+
+          // Check if this is a username link (matches /username pattern)
+          if (href.match(/^\/[a-zA-Z0-9_]+$/)) {
+            const handle = href.substring(1);
+
+            // Get the text content
+            const linkText = link.textContent?.trim() || '';
+
+            // If it starts with @, it's the handle link
+            if (linkText.startsWith('@')) {
+              author.handle = handle;
+            } else if (linkText && !author.name) {
+              // Skip "You reposted", "Retweeted", etc.
+              const skipTexts = ['you reposted', 'retweeted', 'reposted', 'pinned', 'promoted'];
+              const isSkipText = skipTexts.some(skip => linkText.toLowerCase().includes(skip));
+
+              if (!isSkipText && linkText.length > 0 && linkText.length < 100) {
+                author.name = linkText;
+                if (!author.handle) {
+                  author.handle = handle;
+                }
+              }
+            }
+          }
+        }
+
+        console.log('[Retweet Filter] User-Name extraction:', { name: author.name, handle: author.handle });
+      }
+
+      // Strategy 2: Fallback - look for links near the avatar
+      if (!author.handle || !author.name) {
+        // Find the avatar container and look for nearby user info
+        const avatarContainer = tweetElement.querySelector('[data-testid="Tweet-User-Avatar"]');
+        if (avatarContainer) {
+          // The user info is usually a sibling of the avatar container's parent
+          const parent = avatarContainer.closest('div[class]');
+          if (parent && parent.parentElement) {
+            const userInfoArea = parent.parentElement;
+            const links = userInfoArea.querySelectorAll('a[href^="/"]');
+
+            for (const link of links) {
+              const href = link.getAttribute('href');
+              if (!href || href.includes('/status/')) continue;
+
+              if (href.match(/^\/[a-zA-Z0-9_]+$/)) {
+                const linkText = link.textContent?.trim() || '';
+                const handle = href.substring(1);
+
+                // Skip problematic text
+                const skipTexts = ['you reposted', 'retweeted', 'reposted', 'pinned', 'promoted'];
+                const isSkipText = skipTexts.some(skip => linkText.toLowerCase().includes(skip));
+
+                if (linkText.startsWith('@') && !author.handle) {
+                  author.handle = handle;
+                } else if (!isSkipText && linkText && !author.name && linkText.length < 100) {
+                  author.name = linkText;
+                  if (!author.handle) {
+                    author.handle = handle;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        console.log('[Retweet Filter] Avatar-area extraction:', { name: author.name, handle: author.handle });
+      }
+
+      // Strategy 3: Last resort - find any valid user link
+      if (!author.handle) {
+        const userLinks = tweetElement.querySelectorAll('a[href^="/"]');
+        for (const link of userLinks) {
+          const linkHref = link.getAttribute('href');
+          if (linkHref && linkHref.match(/^\/[a-zA-Z0-9_]+$/) && !linkHref.includes('/status/')) {
+            const linkText = link.textContent?.trim() || '';
+            const skipTexts = ['you reposted', 'retweeted', 'reposted', 'pinned', 'promoted', 'show more', 'translate'];
+            const isSkipText = skipTexts.some(skip => linkText.toLowerCase().includes(skip));
+
+            if (!isSkipText) {
+              author.handle = linkHref.substring(1);
+
+              if (!author.name && !linkText.startsWith('@') && linkText.length > 0 && linkText.length < 100) {
+                author.name = linkText;
+              }
               break;
             }
           }
-          break;
         }
+
+        console.log('[Retweet Filter] Fallback extraction:', { name: author.name, handle: author.handle });
+      }
+
+      // If we have handle but no name, use handle as name
+      if (author.handle && !author.name) {
+        author.name = author.handle;
       }
 
       // Check for verification badges - try multiple selectors
