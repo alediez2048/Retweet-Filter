@@ -438,44 +438,76 @@ function setupEventListeners() {
           return;
         }
 
-        // Try to send message to content script
-        let response;
-        try {
-          response = await chrome.tabs.sendMessage(tab.id, { type: 'MANUAL_CAPTURE' });
-        } catch (msgError) {
-          // Content script might not be loaded - try injecting it
-          console.log('[Popup] Content script not found, injecting...');
-          try {
-            await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              files: ['src/content/capture.js']
-            });
-            await chrome.scripting.insertCSS({
-              target: { tabId: tab.id },
-              files: ['src/content/styles.css']
-            });
-            // Wait a moment for the script to initialize
-            await new Promise(resolve => setTimeout(resolve, 200));
-            // Retry the message
-            response = await chrome.tabs.sendMessage(tab.id, { type: 'MANUAL_CAPTURE' });
-          } catch (injectError) {
-            console.error('[Popup] Failed to inject content script:', injectError);
-            showToast('Failed to inject capture script. Please refresh the page.');
-            resetCaptureButton();
-            return;
+        // Helper function to attempt capture with retries
+        async function attemptCapture(maxRetries = 3) {
+          let lastError = null;
+          let lastResponse = null;
+
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              console.log(`[Popup] Capture attempt ${attempt}/${maxRetries}`);
+
+              // Try to send message to content script
+              let response;
+              try {
+                response = await chrome.tabs.sendMessage(tab.id, { type: 'MANUAL_CAPTURE' });
+              } catch (msgError) {
+                // Content script might not be loaded - try injecting it
+                console.log('[Popup] Content script not found, injecting...');
+                await chrome.scripting.executeScript({
+                  target: { tabId: tab.id },
+                  files: ['src/content/capture.js']
+                });
+                await chrome.scripting.insertCSS({
+                  target: { tabId: tab.id },
+                  files: ['src/content/styles.css']
+                });
+                // Wait for the script to initialize
+                await new Promise(resolve => setTimeout(resolve, 500));
+                // Retry the message
+                response = await chrome.tabs.sendMessage(tab.id, { type: 'MANUAL_CAPTURE' });
+              }
+
+              if (response && response.success) {
+                return response; // Success!
+              }
+
+              // Capture failed but no error - store response and maybe retry
+              lastResponse = response;
+              console.log(`[Popup] Attempt ${attempt} failed:`, response?.error);
+
+              // Wait before retry (increasing delay)
+              if (attempt < maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, 300 * attempt));
+              }
+            } catch (error) {
+              lastError = error;
+              console.log(`[Popup] Attempt ${attempt} error:`, error.message);
+
+              // Wait before retry
+              if (attempt < maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, 300 * attempt));
+              }
+            }
           }
+
+          // All retries failed
+          if (lastError) throw lastError;
+          return lastResponse;
         }
+
+        const response = await attemptCapture(3);
 
         if (response && response.success) {
           showToast('Retweet captured!');
           await loadStats();
           await loadRetweets(searchInput ? searchInput.value.trim() : '', currentFilter);
         } else {
-          showToast(response?.error || 'Failed to capture');
+          showToast(response?.error || 'No tweet found to capture');
         }
       } catch (error) {
         console.error('Manual capture error:', error);
-        showToast('No tweet found to capture');
+        showToast('Failed to capture. Please refresh and try again.');
       }
 
       resetCaptureButton();
