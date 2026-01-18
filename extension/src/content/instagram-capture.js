@@ -7,7 +7,7 @@
 (function() {
   'use strict';
 
-  const SCRIPT_VERSION = '1.3.8';
+  const SCRIPT_VERSION = '1.3.9';
   const DEBUG = true;
 
   function log(...args) {
@@ -354,6 +354,25 @@
   }
 
   /**
+   * Try to capture a frame from video as data URL
+   */
+  function captureVideoFrame(video) {
+    try {
+      if (!video || video.readyState < 2) return null;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 320;
+      canvas.height = video.videoHeight || 320;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.8);
+    } catch (e) {
+      log('Could not capture video frame:', e.message);
+      return null;
+    }
+  }
+
+  /**
    * Extract media from container - be VERY restrictive to get only the main post media
    * Strategy: Find the first large image/video that comes AFTER the header in DOM order
    */
@@ -361,99 +380,114 @@
     const media = [];
     const seenUrls = new Set();
 
-    // For null container, try to get thumbnail from meta tags
-    if (!container || container === document) {
-      log('No valid container, trying meta tags for thumbnail');
-      const ogImage = document.querySelector('meta[property="og:image"]');
-      if (ogImage && ogImage.content) {
-        log('Found og:image:', ogImage.content.substring(0, 60));
-        media.push({
-          type: 'image',
-          url: ogImage.content,
-          thumb_url: ogImage.content,
-          alt_text: 'Video thumbnail'
-        });
-        return media;
+    log('=== Media extraction ===');
+
+    // Try to find video anywhere on page first (for Reels)
+    const allVideos = document.querySelectorAll('video');
+    log('Total videos on page:', allVideos.length);
+
+    // Find the most prominent video (largest or currently playing)
+    let bestVideo = null;
+    let bestVideoSize = 0;
+
+    for (const video of allVideos) {
+      const rect = video.getBoundingClientRect();
+      const size = rect.width * rect.height;
+      const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
+
+      log('Video:', { width: rect.width, height: rect.height, visible: isVisible, playing: !video.paused });
+
+      if (isVisible && size > bestVideoSize) {
+        bestVideoSize = size;
+        bestVideo = video;
       }
-      return media;
     }
 
-    log('Extracting media from:', container.tagName);
+    if (bestVideo) {
+      log('Best video found, size:', bestVideoSize);
+      const poster = bestVideo.poster;
+      const src = bestVideo.src || bestVideo.querySelector('source')?.src;
 
-    // First, try to find video (takes priority for reels)
-    const video = container.querySelector('video');
-    if (video) {
-      log('Found video element');
-      const poster = video.poster;
-      const src = video.src || video.querySelector('source')?.src;
-
-      // Strategy 1: Use video poster attribute
+      // Strategy 1: Video poster attribute
       if (poster) {
-        log('Found video with poster:', poster.substring(0, 60));
-        media.push({
-          type: 'video',
-          url: src || '',
-          thumb_url: poster,
-          duration: video.duration || 0
-        });
+        log('Using video poster:', poster.substring(0, 60));
+        media.push({ type: 'video', url: src || '', thumb_url: poster, duration: bestVideo.duration || 0 });
         return media;
       }
 
-      // Strategy 2: Look for an image near the video (Instagram often overlays images on videos)
-      const videoParent = video.parentElement;
-      if (videoParent) {
-        const nearbyImg = videoParent.querySelector('img[src*="cdninstagram"], img[src*="fbcdn"]');
-        if (nearbyImg && nearbyImg.src) {
-          log('Found image near video:', nearbyImg.src.substring(0, 60));
-          media.push({
-            type: 'video',
-            url: src || '',
-            thumb_url: nearbyImg.src,
-            duration: video.duration || 0
-          });
-          return media;
-        }
-      }
-
-      // Strategy 3: Try og:image meta tag for video thumbnail
-      const ogImage = document.querySelector('meta[property="og:image"]');
-      if (ogImage && ogImage.content) {
-        log('Using og:image for video thumbnail:', ogImage.content.substring(0, 60));
-        media.push({
-          type: 'video',
-          url: src || '',
-          thumb_url: ogImage.content,
-          duration: video.duration || 0
-        });
+      // Strategy 2: Capture frame from video
+      const frameData = captureVideoFrame(bestVideo);
+      if (frameData) {
+        log('Captured video frame');
+        media.push({ type: 'video', url: src || '', thumb_url: frameData, duration: bestVideo.duration || 0 });
         return media;
       }
 
-      // Strategy 4: Look for any large image in the container that could be the thumbnail
-      const containerImages = container.querySelectorAll('img[src*="cdninstagram"], img[src*="fbcdn"]');
-      for (const img of containerImages) {
-        const imgRect = img.getBoundingClientRect();
-        if (imgRect.width > 200 && imgRect.height > 200) {
-          log('Found large image as video thumbnail:', img.src.substring(0, 60));
-          media.push({
-            type: 'video',
-            url: src || '',
-            thumb_url: img.src,
-            duration: video.duration || 0
-          });
+      // Strategy 3: Look for cover image in video's ancestry
+      let parent = bestVideo.parentElement;
+      for (let i = 0; i < 5 && parent; i++) {
+        const img = parent.querySelector('img[src*="cdninstagram"], img[src*="fbcdn"], img[src*="scontent"]');
+        if (img && img.src && !img.src.includes('150x150')) {
+          log('Found image near video:', img.src.substring(0, 60));
+          media.push({ type: 'video', url: src || '', thumb_url: img.src, duration: bestVideo.duration || 0 });
           return media;
         }
+        parent = parent.parentElement;
       }
+    }
 
-      // Even without thumbnail, record that it's a video
-      log('Video found but no thumbnail available');
-      media.push({
-        type: 'video',
-        url: src || '',
-        thumb_url: '',
-        duration: video.duration || 0
-      });
+    // No video found or no thumbnail - try images
+    log('Looking for images...');
+
+    // Strategy 4: og:image meta tag (works well for single post pages)
+    const ogImage = document.querySelector('meta[property="og:image"]');
+    if (ogImage && ogImage.content) {
+      log('Using og:image:', ogImage.content.substring(0, 60));
+      media.push({ type: 'image', url: ogImage.content, thumb_url: ogImage.content, alt_text: '' });
       return media;
     }
+
+    // Strategy 5: Find large images on page
+    if (!container || container === document) {
+      log('No container, searching whole page for images');
+      const allImages = document.querySelectorAll('img[src*="cdninstagram"], img[src*="fbcdn"], img[src*="scontent"]');
+      for (const img of allImages) {
+        const rect = img.getBoundingClientRect();
+        if (rect.width > 200 && rect.height > 200 && !img.src.includes('150x150') && !img.alt?.toLowerCase().includes('profile')) {
+          log('Found large page image:', img.src.substring(0, 60));
+          media.push({ type: 'image', url: img.src, thumb_url: img.src, alt_text: img.alt || '' });
+          return media;
+        }
+      }
+      return media;
+    }
+
+    // Strategy 6: Search within container
+    const header = container.querySelector('header');
+    const allImages = Array.from(container.querySelectorAll('img'));
+    const headerRect = header?.getBoundingClientRect();
+
+    for (const img of allImages) {
+      if (header && header.contains(img)) continue;
+
+      const src = img.src;
+      if (!src) continue;
+      if (!src.includes('cdninstagram') && !src.includes('fbcdn') && !src.includes('scontent')) continue;
+      if (src.includes('150x150') || src.includes('44x44')) continue;
+      if (img.alt?.toLowerCase().includes('profile picture')) continue;
+
+      const imgRect = img.getBoundingClientRect();
+      if (headerRect && imgRect.top < headerRect.bottom) continue;
+      if (imgRect.width < 100 || imgRect.height < 100) continue;
+
+      log('Found container image:', src.substring(0, 60));
+      media.push({ type: 'image', url: src, thumb_url: src, alt_text: img.alt || '' });
+      return media;
+    }
+
+    log('No media found');
+    return media;
+  }
 
     // For images: Find the main content area by looking for the structure
     // Instagram posts have: header (avatar/username) -> main content (image) -> footer (likes/comments)
