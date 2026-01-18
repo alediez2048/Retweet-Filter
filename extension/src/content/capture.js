@@ -7,7 +7,7 @@
   'use strict';
 
   // Version for detecting updates
-  const SCRIPT_VERSION = '1.1.3';
+  const SCRIPT_VERSION = '1.2.0';
 
   // Avoid duplicate injection, but allow re-injection if version changed
   if (window.__retweetFilterInjected === SCRIPT_VERSION) {
