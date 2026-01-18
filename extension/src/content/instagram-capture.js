@@ -7,7 +7,7 @@
 (function() {
   'use strict';
 
-  const SCRIPT_VERSION = '1.3.3';
+  const SCRIPT_VERSION = '1.3.4';
   const DEBUG = true;
 
   function log(...args) {
@@ -301,64 +301,101 @@
   }
 
   /**
-   * Extract media from container
+   * Extract media from container - be very restrictive to get only the main post media
    */
   function extractMedia(container) {
     const media = [];
     const seenUrls = new Set();
     const searchRoot = container && container !== document ? container : document;
 
-    // Find the main media area (exclude header/profile pics)
+    log('Extracting media from container:', searchRoot.tagName);
+
+    // Find the header to exclude it
     const header = searchRoot.querySelector('header');
 
-    // Get images
-    const images = searchRoot.querySelectorAll('img[src*="cdninstagram"], img[src*="fbcdn"]');
-    for (const img of images) {
-      // Skip if in header
-      if (header && header.contains(img)) continue;
+    // Strategy 1: Look for the main media container (Instagram uses specific structures)
+    // The main image/video is usually in a div that's a direct child after header
+    const mainMediaSelectors = [
+      'div[role="button"] > div > img',  // Main post image
+      'div[style*="padding-bottom"] img', // Responsive image container
+      'div > div > div > img[style*="object-fit"]', // Another common pattern
+      'video' // Videos
+    ];
 
-      const src = img.src;
-      if (!src || seenUrls.has(src)) continue;
-
-      // Skip small images (avatars, icons)
-      const width = img.naturalWidth || img.width || 0;
-      const height = img.naturalHeight || img.height || 0;
-      if (width > 0 && width < 100 && height > 0 && height < 100) continue;
-
-      // Skip profile pictures
-      if (img.alt?.toLowerCase().includes('profile picture')) continue;
-      if (src.includes('150x150')) continue;
-
-      seenUrls.add(src);
-      media.push({
-        type: 'image',
-        url: src,
-        thumb_url: src,
-        alt_text: img.alt || ''
-      });
-    }
-
-    // Get videos
-    const videos = searchRoot.querySelectorAll('video');
-    for (const video of videos) {
+    // First, try to find video (takes priority)
+    const video = searchRoot.querySelector('video');
+    if (video) {
       const poster = video.poster;
       const src = video.src || video.querySelector('source')?.src;
-
-      if (poster && !seenUrls.has(poster)) {
-        seenUrls.add(poster);
+      if (poster) {
+        log('Found video with poster');
         media.push({
           type: 'video',
           url: src || '',
           thumb_url: poster,
           duration: video.duration || 0
         });
+        seenUrls.add(poster);
       }
     }
 
-    log('Found', media.length, 'media items');
+    // If we have video, that's the main content - return it
+    if (media.length > 0) {
+      log('Returning video as main media');
+      return media;
+    }
 
-    // Limit to 4 items
-    return media.slice(0, 4);
+    // For images, be very selective - find the MAIN post image only
+    // Look for the largest image that's not in the header and not a profile pic
+    let bestImage = null;
+    let bestSize = 0;
+
+    const allImages = searchRoot.querySelectorAll('img');
+    for (const img of allImages) {
+      // Skip header images
+      if (header && header.contains(img)) continue;
+
+      const src = img.src;
+      if (!src) continue;
+
+      // Must be from Instagram/Facebook CDN
+      if (!src.includes('cdninstagram') && !src.includes('fbcdn')) continue;
+
+      // Skip profile pictures and small images
+      if (src.includes('150x150') || src.includes('44x44') || src.includes('32x32')) continue;
+      if (img.alt?.toLowerCase().includes('profile picture')) continue;
+
+      // Calculate size
+      const width = img.naturalWidth || img.width || img.getBoundingClientRect().width || 0;
+      const height = img.naturalHeight || img.height || img.getBoundingClientRect().height || 0;
+      const size = width * height;
+
+      // Skip tiny images
+      if (width < 150 || height < 150) continue;
+
+      log('Candidate image:', { width, height, size, src: src.substring(0, 60) });
+
+      // Keep track of the largest image
+      if (size > bestSize) {
+        bestSize = size;
+        bestImage = img;
+      }
+    }
+
+    // Use only the best (largest) image
+    if (bestImage && !seenUrls.has(bestImage.src)) {
+      log('Selected best image:', bestImage.src.substring(0, 60));
+      seenUrls.add(bestImage.src);
+      media.push({
+        type: 'image',
+        url: bestImage.src,
+        thumb_url: bestImage.src,
+        alt_text: bestImage.alt || ''
+      });
+    }
+
+    log('Final media count:', media.length);
+    return media;
   }
 
   /**
