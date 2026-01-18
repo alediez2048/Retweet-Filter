@@ -6,9 +6,22 @@
 (function() {
   'use strict';
 
-  // Avoid duplicate injection
-  if (window.__retweetFilterInjected) return;
-  window.__retweetFilterInjected = true;
+  // Version for detecting updates
+  const SCRIPT_VERSION = '1.1.0';
+
+  // Avoid duplicate injection, but allow re-injection if version changed
+  if (window.__retweetFilterInjected === SCRIPT_VERSION) {
+    console.log('[Retweet Filter] Already injected (same version), skipping');
+    return;
+  }
+
+  // If there was an old version, clean up listeners (page refresh recommended)
+  if (window.__retweetFilterInjected) {
+    console.log('[Retweet Filter] Detected version change, reinitializing...');
+  }
+
+  window.__retweetFilterInjected = SCRIPT_VERSION;
+  console.log('[Retweet Filter] Content script v' + SCRIPT_VERSION + ' loading...');
 
   const CAPTURE_DEBOUNCE_MS = 300;
   const PROCESSED_MARKER = 'data-rf-processed';
@@ -557,11 +570,18 @@
    * @param {Object} tweetData - Tweet data
    */
   function queueCapture(tweetData) {
-    if (!tweetData || !tweetData.tweet_id) return;
+    if (!tweetData || !tweetData.tweet_id) {
+      console.warn('[Retweet Filter] queueCapture called with invalid data:', tweetData);
+      return;
+    }
 
     // Check if already queued
-    if (captureQueue.some(t => t.tweet_id === tweetData.tweet_id)) return;
+    if (captureQueue.some(t => t.tweet_id === tweetData.tweet_id)) {
+      console.log('[Retweet Filter] Tweet already in queue:', tweetData.tweet_id);
+      return;
+    }
 
+    console.log('[Retweet Filter] Queuing tweet for capture:', tweetData.tweet_id);
     captureQueue.push(tweetData);
 
     // Debounce sending to background
@@ -575,15 +595,24 @@
   async function flushCaptureQueue() {
     if (captureQueue.length === 0) return;
 
+    console.log('[Retweet Filter] Flushing capture queue, items:', captureQueue.length);
+
     const items = [...captureQueue];
     captureQueue = [];
 
     for (const item of items) {
       try {
-        await chrome.runtime.sendMessage({
+        console.log('[Retweet Filter] Sending to background:', item.tweet_id, {
+          user: item.user_handle,
+          has_avatar: !!item.user_avatar,
+          like_count: item.like_count,
+          retweet_count: item.retweet_count
+        });
+        const response = await chrome.runtime.sendMessage({
           type: 'CAPTURE_RETWEET',
           data: item
         });
+        console.log('[Retweet Filter] Background response:', response);
         showCaptureIndicator(item);
       } catch (error) {
         console.error('[Retweet Filter] Error sending capture:', error);
