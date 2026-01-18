@@ -1,20 +1,26 @@
 /**
  * Content script for capturing saved posts on Instagram
  * Detects when user bookmarks/saves a post and captures it
+ * v1.3.3 - Improved extraction with extensive debugging
  */
 
 (function() {
   'use strict';
 
-  const SCRIPT_VERSION = '1.3.2';
+  const SCRIPT_VERSION = '1.3.3';
+  const DEBUG = true;
+
+  function log(...args) {
+    if (DEBUG) console.log('[IG Capture]', ...args);
+  }
 
   // Prevent duplicate injection
   if (window.__instagramFilterInjected === SCRIPT_VERSION) {
-    console.log('[IG Capture] Already injected, skipping');
+    log('Already injected, skipping');
     return;
   }
   window.__instagramFilterInjected = SCRIPT_VERSION;
-  console.log('[IG Capture] v' + SCRIPT_VERSION + ' loading...');
+  log('v' + SCRIPT_VERSION + ' loading...');
 
   // Track recently captured post IDs to prevent duplicates
   const recentlyCaptured = new Set();
@@ -24,226 +30,304 @@
    * Extract post ID from URL
    */
   function extractPostIdFromUrl(url) {
-    if (!url) url = window.location.href;
+    if (!url) return null;
     const match = url.match(/\/(p|reel|reels|tv)\/([A-Za-z0-9_-]+)/);
     return match ? match[2] : null;
   }
 
   /**
-   * Get the current post URL - prioritize the page URL for single post pages
+   * Find the post container from a clicked element
+   * Instagram uses different structures: article, div with role, etc.
    */
-  function getCurrentPostUrl() {
-    const url = window.location.href;
-    // If we're on a post/reel page, use that URL
-    if (url.match(/\/(p|reel|reels|tv)\/[A-Za-z0-9_-]+/)) {
-      return url.split('?')[0];
-    }
-    return url;
-  }
+  function findPostContainer(clickedElement) {
+    if (!clickedElement) return null;
 
-  /**
-   * Extract post URL from an article element (for feed posts)
-   */
-  function extractPostUrlFromArticle(article) {
-    if (!article) return null;
-
-    // Look for post link in the article
-    const timeLink = article.querySelector('a[href*="/p/"], a[href*="/reel/"]');
-    if (timeLink) {
-      const href = timeLink.getAttribute('href');
-      if (href) {
-        return href.startsWith('http') ? href : `https://www.instagram.com${href}`;
-      }
+    // Try article first (standard posts)
+    let container = clickedElement.closest('article');
+    if (container) {
+      log('Found article container');
+      return container;
     }
 
-    // Fallback to window location if on a single post page
-    const url = window.location.href;
-    if (url.match(/\/(p|reel|reels|tv)\/[A-Za-z0-9_-]+/)) {
-      return url.split('?')[0];
+    // Try div with specific roles (reels, stories)
+    container = clickedElement.closest('div[role="dialog"]');
+    if (container) {
+      log('Found dialog container');
+      return container;
     }
 
-    return null;
-  }
-
-  /**
-   * Extract username from the article - multiple strategies
-   */
-  function extractUsername(article) {
-    // If on a single post page, try URL first
-    const pathMatch = window.location.pathname.match(/^\/([a-zA-Z0-9._]+)\/?$/);
-    if (pathMatch && !['p', 'reel', 'reels', 'tv', 'explore', 'direct', 'accounts'].includes(pathMatch[1])) {
-      return pathMatch[1];
+    // Try section (some feed layouts)
+    container = clickedElement.closest('section');
+    if (container && container.querySelector('video, img[src*="cdninstagram"]')) {
+      log('Found section container');
+      return container;
     }
 
-    // Strategy 1: From the article header links (most reliable for feed)
-    if (article) {
-      const header = article.querySelector('header');
-      if (header) {
-        const links = header.querySelectorAll('a[href^="/"]');
-        for (const link of links) {
-          const href = link.getAttribute('href');
-          const match = href?.match(/^\/([a-zA-Z0-9._]+)\/?$/);
-          if (match && !['p', 'reel', 'reels', 'tv', 'explore'].includes(match[1])) {
-            return match[1];
-          }
+    // For reels, look for the main content div
+    container = clickedElement.closest('div[style*="height"]');
+    if (container && container.querySelector('video')) {
+      log('Found reel container');
+      return container;
+    }
+
+    // Fallback: walk up to find a container with media
+    let el = clickedElement.parentElement;
+    let depth = 0;
+    while (el && depth < 15) {
+      if (el.querySelector('video') || el.querySelectorAll('img[src*="cdninstagram"]').length > 0) {
+        const hasUsername = el.querySelector('a[href^="/"]:not([href*="/p/"]):not([href*="/reel/"])');
+        if (hasUsername) {
+          log('Found container by walking up', depth, 'levels');
+          return el;
         }
       }
+      el = el.parentElement;
+      depth++;
+    }
 
-      // Strategy 2: Look for username span in the article
-      const usernameSpan = article.querySelector('header span a[href^="/"]');
-      if (usernameSpan) {
-        const href = usernameSpan.getAttribute('href');
+    log('No container found, using document');
+    return document;
+  }
+
+  /**
+   * Extract post URL from container or page
+   */
+  function extractPostUrl(container) {
+    // First check the page URL
+    const pageUrl = window.location.href;
+    if (pageUrl.match(/\/(p|reel|reels|tv)\/[A-Za-z0-9_-]+/)) {
+      log('Post URL from page:', pageUrl);
+      return pageUrl.split('?')[0];
+    }
+
+    // Look for post links in the container
+    if (container && container !== document) {
+      const postLinks = container.querySelectorAll('a[href*="/p/"], a[href*="/reel/"], a[href*="/reels/"]');
+      for (const link of postLinks) {
+        const href = link.getAttribute('href');
+        if (href) {
+          const fullUrl = href.startsWith('http') ? href : `https://www.instagram.com${href}`;
+          log('Post URL from container link:', fullUrl);
+          return fullUrl;
+        }
+      }
+    }
+
+    // Look anywhere on the page for the time/date link which goes to the post
+    const timeLinks = document.querySelectorAll('time[datetime]');
+    for (const time of timeLinks) {
+      const link = time.closest('a[href*="/p/"], a[href*="/reel/"]');
+      if (link) {
+        const href = link.getAttribute('href');
+        if (href) {
+          const fullUrl = href.startsWith('http') ? href : `https://www.instagram.com${href}`;
+          log('Post URL from time link:', fullUrl);
+          return fullUrl;
+        }
+      }
+    }
+
+    log('No post URL found');
+    return pageUrl;
+  }
+
+  /**
+   * Extract username from container
+   */
+  function extractUsername(container) {
+    log('Extracting username...');
+
+    const searchRoot = container && container !== document ? container : document;
+
+    // Strategy 1: Look in header for username links
+    const header = searchRoot.querySelector('header');
+    if (header) {
+      const links = header.querySelectorAll('a[href^="/"]');
+      for (const link of links) {
+        const href = link.getAttribute('href');
         const match = href?.match(/^\/([a-zA-Z0-9._]+)\/?$/);
-        if (match) return match[1];
+        if (match && !['p', 'reel', 'reels', 'tv', 'explore', 'direct', 'stories'].includes(match[1])) {
+          log('Username from header link:', match[1]);
+          return match[1];
+        }
       }
     }
 
-    // Strategy 3: From meta tags (only for single post pages)
-    const ogUrl = document.querySelector('meta[property="og:url"]');
-    if (ogUrl) {
-      const match = ogUrl.content?.match(/instagram\.com\/([a-zA-Z0-9._]+)/);
-      if (match && !['p', 'reel', 'reels', 'tv'].includes(match[1])) {
-        return match[1];
+    // Strategy 2: Look for any username-style link in container
+    const allLinks = searchRoot.querySelectorAll('a[href^="/"]');
+    for (const link of allLinks) {
+      const href = link.getAttribute('href');
+      const match = href?.match(/^\/([a-zA-Z0-9._]+)\/?$/);
+      if (match && !['p', 'reel', 'reels', 'tv', 'explore', 'direct', 'stories', 'accounts'].includes(match[1])) {
+        // Check if this looks like a username (small text, near top)
+        const text = link.textContent?.trim();
+        if (text && text === match[1]) {
+          log('Username from link text:', match[1]);
+          return match[1];
+        }
       }
     }
 
-    // Strategy 4: Look for username in the page title
+    // Strategy 3: From page title
     const title = document.title;
     const titleMatch = title.match(/@([a-zA-Z0-9._]+)/);
     if (titleMatch) {
+      log('Username from title:', titleMatch[1]);
       return titleMatch[1];
     }
 
-    return '';
-  }
-
-  /**
-   * Extract display name (different from username)
-   */
-  function extractDisplayName(username, article) {
-    if (!article) return username;
-
-    const header = article.querySelector('header');
-    if (!header) return username;
-
-    // Look for spans that might contain the display name
-    const spans = header.querySelectorAll('span');
-    for (const span of spans) {
-      const text = span.textContent?.trim();
-      // Display name is usually not the username and doesn't contain special chars
-      if (text && text.length > 0 && text.length < 50 &&
-          text !== username && !text.startsWith('@') &&
-          !text.includes('Verified') && !text.includes('Follow')) {
-        return text;
+    // Strategy 4: From og:description
+    const ogDesc = document.querySelector('meta[property="og:description"]');
+    if (ogDesc) {
+      const content = ogDesc.content;
+      // Format: "123 likes, 45 comments - username on Instagram..."
+      const descMatch = content?.match(/- ([a-zA-Z0-9._]+) on Instagram/);
+      if (descMatch) {
+        log('Username from og:description:', descMatch[1]);
+        return descMatch[1];
       }
     }
 
-    return username;
+    // Strategy 5: Look for spans with @ prefix
+    const spans = searchRoot.querySelectorAll('span');
+    for (const span of spans) {
+      const text = span.textContent?.trim();
+      if (text && text.startsWith('@')) {
+        const username = text.substring(1);
+        if (username.match(/^[a-zA-Z0-9._]+$/)) {
+          log('Username from @span:', username);
+          return username;
+        }
+      }
+    }
+
+    log('No username found');
+    return '';
   }
 
   /**
    * Extract avatar URL
    */
-  function extractAvatar(article) {
-    if (article) {
-      const header = article.querySelector('header');
-      if (header) {
-        const img = header.querySelector('img[alt*="profile" i], img[src*="150x150"], img[src*="cdninstagram"]');
-        if (img && img.src) {
-          return img.src;
-        }
-        // Fallback: first small image in header (likely avatar)
-        const firstImg = header.querySelector('img');
-        if (firstImg && firstImg.src) {
-          return firstImg.src;
-        }
+  function extractAvatar(container) {
+    const searchRoot = container && container !== document ? container : document;
+
+    // Look for profile picture in header
+    const header = searchRoot.querySelector('header');
+    if (header) {
+      const img = header.querySelector('img');
+      if (img && img.src) {
+        log('Avatar from header:', img.src.substring(0, 50) + '...');
+        return img.src;
       }
     }
 
+    // Look for any small profile-like image
+    const images = searchRoot.querySelectorAll('img[src*="cdninstagram"]');
+    for (const img of images) {
+      // Profile pictures are usually small and square
+      if (img.width && img.width < 80 && img.height && img.height < 80) {
+        log('Avatar from small image:', img.src.substring(0, 50) + '...');
+        return img.src;
+      }
+      // Or check for profile picture keywords
+      if (img.alt?.toLowerCase().includes('profile')) {
+        log('Avatar from profile alt:', img.src.substring(0, 50) + '...');
+        return img.src;
+      }
+    }
+
+    log('No avatar found');
     return '';
   }
 
   /**
    * Extract caption/description text
    */
-  function extractCaption(article) {
-    if (!article) return '';
+  function extractCaption(container) {
+    const searchRoot = container && container !== document ? container : document;
 
-    // Strategy 1: Look for the main caption container
-    // Instagram typically has caption in a specific structure
-    const captionSelectors = [
-      'h1', // Reels often use h1 for caption
-      'div[style*="display"] > span',
-      'ul li span[dir="auto"]',
-      'span[dir="auto"]'
-    ];
+    // Strategy 1: Look for h1 (common in reels)
+    const h1 = searchRoot.querySelector('h1');
+    if (h1) {
+      const text = h1.textContent?.trim();
+      if (text && text.length > 10) {
+        log('Caption from h1:', text.substring(0, 50) + '...');
+        return text;
+      }
+    }
 
-    for (const selector of captionSelectors) {
-      const elements = article.querySelectorAll(selector);
-      for (const el of elements) {
-        const text = el.textContent?.trim();
-        // Caption should be substantial and not be UI text
-        if (text && text.length > 5 &&
+    // Strategy 2: Look for caption in list items (post comments section)
+    const listItems = searchRoot.querySelectorAll('ul > div > li, ul > li');
+    for (const li of listItems) {
+      const spans = li.querySelectorAll('span');
+      for (const span of spans) {
+        const text = span.textContent?.trim();
+        if (text && text.length > 20 &&
             !text.includes('likes') &&
             !text.includes('views') &&
-            !text.includes('comments') &&
-            !text.includes('Follow') &&
-            !text.includes('Verified') &&
-            !text.match(/^\d+[KMB]?\s*(likes?|views?|comments?)/i)) {
-          // Check this isn't just a username
-          if (text.length > 20 || text.includes(' ') || text.includes('#')) {
-            console.log('[IG Capture] Found caption:', text.substring(0, 50));
-            return text;
-          }
+            !text.match(/^\d+ (likes?|views?|comments?)/)) {
+          log('Caption from list item:', text.substring(0, 50) + '...');
+          return text;
         }
       }
     }
 
-    // Strategy 2: Look in meta tags (only useful on single post pages)
-    const ogDesc = document.querySelector('meta[property="og:description"]');
-    if (ogDesc && ogDesc.content) {
-      const desc = ogDesc.content;
-      // Instagram meta descriptions often have format: "X likes, Y comments - username: caption"
-      const captionMatch = desc.match(/:\s*[""]?(.+?)[""]?\s*$/);
-      if (captionMatch) {
-        return captionMatch[1];
+    // Strategy 3: Look for span with dir="auto" (caption text)
+    const autoSpans = searchRoot.querySelectorAll('span[dir="auto"]');
+    for (const span of autoSpans) {
+      const text = span.textContent?.trim();
+      if (text && text.length > 15 &&
+          !text.includes('likes') &&
+          !text.match(/^\d+[KMB]?\s*(likes?|views?)/i)) {
+        log('Caption from span[dir=auto]:', text.substring(0, 50) + '...');
+        return text;
       }
-      return desc;
     }
 
+    // Strategy 4: From meta description
+    const ogDesc = document.querySelector('meta[property="og:description"]');
+    if (ogDesc && ogDesc.content) {
+      // Parse: "123 likes, 45 comments - username: "caption text""
+      const match = ogDesc.content.match(/:\s*[""](.+?)[""]|:\s*(.+)$/);
+      if (match) {
+        const caption = match[1] || match[2];
+        log('Caption from og:description:', caption.substring(0, 50) + '...');
+        return caption;
+      }
+    }
+
+    log('No caption found');
     return '';
   }
 
   /**
-   * Extract media (images/videos) from the current post only
+   * Extract media from container
    */
-  function extractMedia(article) {
+  function extractMedia(container) {
     const media = [];
     const seenUrls = new Set();
+    const searchRoot = container && container !== document ? container : document;
 
-    if (!article) return media;
+    // Find the main media area (exclude header/profile pics)
+    const header = searchRoot.querySelector('header');
 
-    // Find the main media container (not the header/avatar area)
-    // Look for images in the post content area, excluding header
-    const header = article.querySelector('header');
-
-    // Get all images in article
-    const images = article.querySelectorAll('img');
+    // Get images
+    const images = searchRoot.querySelectorAll('img[src*="cdninstagram"], img[src*="fbcdn"]');
     for (const img of images) {
-      // Skip if image is inside header (avatar)
+      // Skip if in header
       if (header && header.contains(img)) continue;
 
       const src = img.src;
       if (!src || seenUrls.has(src)) continue;
 
-      // Skip small images (icons, avatars)
-      if (img.width < 100 && img.height < 100) continue;
+      // Skip small images (avatars, icons)
+      const width = img.naturalWidth || img.width || 0;
+      const height = img.naturalHeight || img.height || 0;
+      if (width > 0 && width < 100 && height > 0 && height < 100) continue;
 
       // Skip profile pictures
-      if (src.includes('150x150') || src.includes('profile')) continue;
-
-      // Must be from Instagram CDN
-      if (!src.includes('cdninstagram') && !src.includes('fbcdn')) continue;
+      if (img.alt?.toLowerCase().includes('profile picture')) continue;
+      if (src.includes('150x150')) continue;
 
       seenUrls.add(src);
       media.push({
@@ -254,8 +338,8 @@
       });
     }
 
-    // Find videos
-    const videos = article.querySelectorAll('video');
+    // Get videos
+    const videos = searchRoot.querySelectorAll('video');
     for (const video of videos) {
       const poster = video.poster;
       const src = video.src || video.querySelector('source')?.src;
@@ -271,62 +355,58 @@
       }
     }
 
-    // Limit to first 4 media items (carousel limit)
+    log('Found', media.length, 'media items');
+
+    // Limit to 4 items
     return media.slice(0, 4);
   }
 
   /**
    * Extract engagement metrics
    */
-  function extractMetrics(article) {
+  function extractMetrics(container) {
     const metrics = { likes: 0, comments: 0, views: 0 };
+    const searchRoot = container && container !== document ? container : document;
+    const text = searchRoot.innerText || '';
 
-    // Look for like count
-    const likePatterns = [
-      /(\d[\d,.]*[KMB]?)\s*likes?/i,
-      /(\d[\d,.]*[KMB]?)\s*others?/i
-    ];
-
-    // Look for view count (reels/videos)
-    const viewPatterns = [
-      /(\d[\d,.]*[KMB]?)\s*views?/i,
-      /(\d[\d,.]*[KMB]?)\s*plays?/i
-    ];
-
-    // Prefer extracting from the specific article
-    const textContent = article ? article.innerText : document.body.innerText;
-
-    for (const pattern of likePatterns) {
-      const match = textContent.match(pattern);
-      if (match) {
-        metrics.likes = parseMetricValue(match[1]);
-        break;
-      }
+    // Likes
+    const likeMatch = text.match(/(\d[\d,\.]*[KMB]?)\s*likes?/i);
+    if (likeMatch) {
+      metrics.likes = parseMetric(likeMatch[1]);
+      log('Likes:', metrics.likes);
     }
 
-    for (const pattern of viewPatterns) {
-      const match = textContent.match(pattern);
-      if (match) {
-        metrics.views = parseMetricValue(match[1]);
-        break;
-      }
+    // Views
+    const viewMatch = text.match(/(\d[\d,\.]*[KMB]?)\s*views?/i);
+    if (viewMatch) {
+      metrics.views = parseMetric(viewMatch[1]);
+      log('Views:', metrics.views);
+    }
+
+    // Comments
+    const commentMatch = text.match(/(\d[\d,\.]*[KMB]?)\s*comments?/i);
+    if (commentMatch) {
+      metrics.comments = parseMetric(commentMatch[1]);
+      log('Comments:', metrics.comments);
     }
 
     return metrics;
   }
 
   /**
-   * Parse metric value like "1.2K" or "1,234" to number
+   * Parse metric string to number
    */
-  function parseMetricValue(str) {
+  function parseMetric(str) {
     if (!str) return 0;
     str = str.replace(/,/g, '');
-    const multipliers = { 'K': 1000, 'M': 1000000, 'B': 1000000000 };
     const match = str.match(/^([\d.]+)([KMB])?$/i);
     if (match) {
       const num = parseFloat(match[1]);
       const suffix = match[2]?.toUpperCase();
-      return suffix ? Math.round(num * multipliers[suffix]) : num;
+      if (suffix === 'K') return Math.round(num * 1000);
+      if (suffix === 'M') return Math.round(num * 1000000);
+      if (suffix === 'B') return Math.round(num * 1000000000);
+      return num;
     }
     return parseInt(str, 10) || 0;
   }
@@ -334,38 +414,27 @@
   /**
    * Check if user is verified
    */
-  function isVerified(article) {
-    if (!article) return false;
+  function isVerified(container) {
+    const searchRoot = container && container !== document ? container : document;
 
-    const header = article.querySelector('header');
-    if (!header) return false;
-
-    // Look for verified badge SVG
-    const verifiedSvg = header.querySelector('svg[aria-label*="Verified" i]');
-    if (verifiedSvg) return true;
-
-    // Look for verified text
-    const spans = header.querySelectorAll('span');
-    for (const span of spans) {
-      if (span.textContent?.includes('Verified')) return true;
-    }
-
-    return false;
+    // Look for verified badge
+    const badge = searchRoot.querySelector('svg[aria-label*="Verified" i], [title*="Verified" i]');
+    return !!badge;
   }
 
   /**
-   * Extract hashtags and mentions from caption
+   * Extract hashtags and mentions
    */
-  function extractEntities(caption) {
+  function extractEntities(text) {
     const entities = { hashtags: [], mentions: [] };
-    if (!caption) return entities;
+    if (!text) return entities;
 
-    const hashtags = caption.match(/#[a-zA-Z0-9_]+/g);
+    const hashtags = text.match(/#[a-zA-Z0-9_]+/g);
     if (hashtags) {
       entities.hashtags = hashtags.map(h => h.substring(1));
     }
 
-    const mentions = caption.match(/@[a-zA-Z0-9._]+/g);
+    const mentions = text.match(/@[a-zA-Z0-9._]+/g);
     if (mentions) {
       entities.mentions = mentions.map(m => m.substring(1));
     }
@@ -374,54 +443,38 @@
   }
 
   /**
-   * Extract complete post data from a specific article
+   * Extract complete post data
    */
-  function extractPostData(targetArticle = null) {
-    // Find the article to extract from
-    const article = targetArticle || document.querySelector('article');
+  function extractPostData(container) {
+    log('=== Starting extraction ===');
+    log('Container:', container?.tagName || 'document');
 
-    if (!article) {
-      console.log('[IG Capture] No article found');
-      return null;
-    }
-
-    // Get post URL - prefer extracting from the article for feed posts
-    let postUrl = extractPostUrlFromArticle(article);
-    if (!postUrl) {
-      postUrl = getCurrentPostUrl();
-    }
-
+    const postUrl = extractPostUrl(container);
     const postId = extractPostIdFromUrl(postUrl);
 
     if (!postId) {
-      console.log('[IG Capture] No post ID found');
+      log('ERROR: No post ID found');
       return null;
     }
 
-    // Check for recent duplicate
     if (recentlyCaptured.has(postId)) {
-      console.log('[IG Capture] Skipping duplicate:', postId);
+      log('Skipping duplicate:', postId);
       return null;
     }
 
-    const username = extractUsername(article);
-    const displayName = extractDisplayName(username, article);
-    const avatar = extractAvatar(article);
-    const caption = extractCaption(article);
-    const media = extractMedia(article);
-    const metrics = extractMetrics(article);
-    const verified = isVerified(article);
+    const username = extractUsername(container);
+    const avatar = extractAvatar(container);
+    const caption = extractCaption(container);
+    const media = extractMedia(container);
+    const metrics = extractMetrics(container);
+    const verified = isVerified(container);
     const entities = extractEntities(caption);
 
     // Determine post type
     let postType = 'post';
-    if (postUrl.includes('/reel')) {
-      postType = 'reel';
-    } else if (postUrl.includes('/tv/')) {
-      postType = 'igtv';
-    } else if (media.some(m => m.type === 'video')) {
-      postType = 'video';
-    }
+    if (postUrl.includes('/reel')) postType = 'reel';
+    else if (postUrl.includes('/tv/')) postType = 'igtv';
+    else if (media.some(m => m.type === 'video')) postType = 'video';
 
     const data = {
       tweet_id: postId,
@@ -430,7 +483,7 @@
       platform: 'instagram',
 
       user_handle: username,
-      user_name: displayName || username,
+      user_name: username,
       user_avatar: avatar,
       user_verified: verified,
       user_blue_verified: verified,
@@ -466,32 +519,26 @@
       source: 'browser'
     };
 
-    console.log('[IG Capture] Extracted data:', {
-      postId,
-      postUrl,
-      username,
-      displayName,
-      hasAvatar: !!avatar,
-      captionLength: caption.length,
-      mediaCount: media.length,
-      postType
-    });
+    log('=== Extraction complete ===');
+    log('Post ID:', postId);
+    log('Username:', username || '(none)');
+    log('Caption:', caption ? caption.substring(0, 30) + '...' : '(none)');
+    log('Media count:', media.length);
+    log('Likes:', metrics.likes);
 
     return data;
   }
 
   /**
-   * Capture a specific post
+   * Capture a post
    */
-  async function capturePost(targetArticle = null) {
-    const postData = extractPostData(targetArticle);
+  async function capturePost(container) {
+    const postData = extractPostData(container);
 
     if (!postData) {
-      console.log('[IG Capture] No post data to capture');
       return { success: false, error: 'Could not extract post data' };
     }
 
-    // Mark as recently captured
     recentlyCaptured.add(postData.post_id);
     setTimeout(() => recentlyCaptured.delete(postData.post_id), DUPLICATE_WINDOW_MS);
 
@@ -508,7 +555,7 @@
         return { success: false, error: response?.error || 'Failed to save' };
       }
     } catch (error) {
-      console.error('[IG Capture] Error sending to background:', error);
+      console.error('[IG Capture] Error:', error);
       return { success: false, error: error.message };
     }
   }
@@ -557,48 +604,46 @@
     const svg = element.querySelector?.('svg');
     if (svg && checkLabel(svg)) return true;
 
-    const button = element.closest?.('button');
-    if (button && checkLabel(button)) return true;
+    const parent = element.closest?.('button, div[role="button"]');
+    if (parent && checkLabel(parent)) return true;
 
     return false;
   }
 
   /**
-   * Setup click listener for save button
+   * Setup click listener
    */
   function setupClickListener() {
     document.addEventListener('click', (event) => {
       const target = event.target;
 
-      // Check if save button clicked
       if (isSaveButton(target) ||
           isSaveButton(target.closest('button')) ||
           isSaveButton(target.closest('div[role="button"]')) ||
           isSaveButton(target.closest('svg')?.parentElement)) {
 
-        console.log('[IG Capture] Save button clicked');
+        log('Save button clicked!');
 
-        // Find the article containing this save button
-        const article = target.closest('article');
+        // Find the post container
+        const container = findPostContainer(target);
 
         // Delay to allow Instagram to update UI
         setTimeout(() => {
-          capturePost(article);
-        }, 200);
+          capturePost(container);
+        }, 300);
       }
     }, true);
   }
 
   /**
-   * Listen for messages from popup
+   * Listen for messages
    */
   function setupMessageListener() {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      console.log('[IG Capture] Received message:', message.type);
+      log('Message received:', message.type);
 
       if (message.type === 'MANUAL_CAPTURE' || message.type === 'MANUAL_CAPTURE_INSTAGRAM') {
-        // For manual capture, use the first/only article on page (single post view)
-        capturePost().then(result => {
+        capturePost(null).then(result => {
           sendResponse(result);
         });
         return true;
@@ -615,10 +660,10 @@
    * Initialize
    */
   function init() {
-    console.log('[IG Capture] Initializing...');
+    log('Initializing...');
     setupClickListener();
     setupMessageListener();
-    console.log('[IG Capture] Ready');
+    log('Ready - click a save button to capture');
   }
 
   if (document.readyState === 'loading') {
