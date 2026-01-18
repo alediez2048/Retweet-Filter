@@ -1,0 +1,27 @@
+{
+  "name": "retweet-filter",
+  "version": "1.0.0",
+  "description": "Chrome extension to capture, search, and organize your retweets locally",
+  "main": "index.js",
+  "scripts": {
+    "icons": "node scripts/generate-icons.js",
+    "test": "echo 'Run tests in browser by opening tests/unit/*.test.js'",
+    "build": "npm run icons && echo 'Extension ready in ./extension folder'",
+    "server": "cd server && npm start",
+    "server:install": "cd server && npm install"
+  },
+  "keywords": [
+    "chrome-extension",
+    "twitter",
+    "x",
+    "retweet",
+    "archive",
+    "bookmark"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/retweet-filter.git"
+  }
+}

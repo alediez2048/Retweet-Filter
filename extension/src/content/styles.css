@@ -1,0 +1,88 @@
+/* Retweet Filter - Content Script Styles */
+
+/* Capture Toast Notification */
+.rf-capture-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: #1d9bf0;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 999999;
+  opacity: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.rf-capture-toast-visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+.rf-capture-toast svg {
+  flex-shrink: 0;
+}
+
+/* Manual Capture Button (injected near retweet button) */
+.rf-capture-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #71767b;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.rf-capture-btn:hover {
+  background: rgba(29, 155, 240, 0.1);
+  color: #1d9bf0;
+}
+
+.rf-capture-btn:active {
+  background: rgba(29, 155, 240, 0.2);
+}
+
+.rf-capture-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Captured indicator on tweets */
+.rf-captured-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00ba7c;
+  box-shadow: 0 0 4px rgba(0, 186, 124, 0.5);
+}
+
+/* Highlight for recently captured tweets */
+.rf-just-captured {
+  animation: rf-capture-highlight 2s ease-out;
+}
+
+@keyframes rf-capture-highlight {
+  0% {
+    box-shadow: inset 0 0 0 2px #1d9bf0;
+  }
+  100% {
+    box-shadow: inset 0 0 0 2px transparent;
+  }
+}

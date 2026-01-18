@@ -1,0 +1,581 @@
+/**
+ * Content script for capturing retweets on X.com
+ * Uses MutationObserver and event delegation to detect retweet actions
+ */
+
+(function() {
+  'use strict';
+
+  // Avoid duplicate injection
+  if (window.__retweetFilterInjected) return;
+  window.__retweetFilterInjected = true;
+
+  const CAPTURE_DEBOUNCE_MS = 300;
+  const PROCESSED_MARKER = 'data-rf-processed';
+
+  let captureQueue = [];
+  let queueTimeout = null;
+
+  // Track the currently hovered tweet (since :hover doesn't work with querySelector)
+  let lastHoveredTweet = null;
+  let lastMousePosition = { x: 0, y: 0 };
+
+  /**
+   * Extract tweet data from a tweet article element
+   * @param {Element} tweetElement - Tweet article element
+   * @returns {Object|null} Tweet data or null
+   */
+  function extractTweetData(tweetElement) {
+    if (!tweetElement) return null;
+
+    try {
+      // Find the tweet link to get tweet ID
+      const tweetLink = tweetElement.querySelector('a[href*="/status/"]');
+      if (!tweetLink) return null;
+
+      const href = tweetLink.getAttribute('href');
+      const tweetIdMatch = href.match(/\/status\/(\d+)/);
+      if (!tweetIdMatch) return null;
+
+      const tweetId = tweetIdMatch[1];
+
+      // Get user info
+      const userLinks = tweetElement.querySelectorAll('a[href^="/"]');
+      let userHandle = '';
+      let userName = '';
+
+      for (const link of userLinks) {
+        const linkHref = link.getAttribute('href');
+        if (linkHref && linkHref.match(/^\/[a-zA-Z0-9_]+$/) && !linkHref.includes('/status/')) {
+          userHandle = linkHref.substring(1);
+          const nameSpan = link.querySelector('span');
+          if (nameSpan) {
+            userName = nameSpan.textContent || '';
+          }
+          break;
+        }
+      }
+
+      // Get tweet text
+      const tweetTextElement = tweetElement.querySelector('[data-testid="tweetText"]');
+      const text = tweetTextElement ? tweetTextElement.textContent : '';
+
+      // Check for quote tweet
+      let quotedText = '';
+      let quotedAuthor = '';
+      const quoteTweet = tweetElement.querySelector('[data-testid="tweet"] [data-testid="tweet"]');
+      if (quoteTweet) {
+        const quoteTextEl = quoteTweet.querySelector('[data-testid="tweetText"]');
+        quotedText = quoteTextEl ? quoteTextEl.textContent : '';
+
+        const quoteAuthorLink = quoteTweet.querySelector('a[href^="/"]');
+        if (quoteAuthorLink) {
+          const quoteHref = quoteAuthorLink.getAttribute('href');
+          if (quoteHref && quoteHref.match(/^\/[a-zA-Z0-9_]+$/)) {
+            quotedAuthor = quoteHref.substring(1);
+          }
+        }
+      }
+
+      // Get media
+      const media = [];
+      const images = tweetElement.querySelectorAll('[data-testid="tweetPhoto"] img');
+      for (const img of images) {
+        const src = img.getAttribute('src');
+        if (src && !src.includes('profile_images')) {
+          media.push({
+            type: 'image',
+            url: src,
+            thumb_url: src
+          });
+        }
+      }
+
+      const videos = tweetElement.querySelectorAll('[data-testid="videoPlayer"]');
+      for (const video of videos) {
+        const poster = video.querySelector('video')?.getAttribute('poster');
+        media.push({
+          type: 'video',
+          url: '', // Video URLs require additional extraction
+          thumb_url: poster || ''
+        });
+      }
+
+      // Get timestamp
+      const timeElement = tweetElement.querySelector('time');
+      const originalCreatedAt = timeElement ? timeElement.getAttribute('datetime') : null;
+
+      return {
+        tweet_id: tweetId,
+        user_handle: userHandle,
+        user_name: userName,
+        text: text,
+        quoted_text: quotedText,
+        quoted_author: quotedAuthor,
+        media: media,
+        original_created_at: originalCreatedAt,
+        source_url: `https://x.com/${userHandle}/status/${tweetId}`,
+        source: 'browser'
+      };
+    } catch (error) {
+      console.error('[Retweet Filter] Error extracting tweet data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Find the parent tweet article for an element
+   * @param {Element} element - Starting element
+   * @returns {Element|null} Tweet article or null
+   */
+  function findTweetArticle(element) {
+    let current = element;
+    while (current && current !== document.body) {
+      if (current.tagName === 'ARTICLE' && current.getAttribute('data-testid') === 'tweet') {
+        return current;
+      }
+      current = current.parentElement;
+    }
+    return null;
+  }
+
+  /**
+   * Queue a retweet for capture
+   * @param {Object} tweetData - Tweet data
+   */
+  function queueCapture(tweetData) {
+    if (!tweetData || !tweetData.tweet_id) return;
+
+    // Check if already queued
+    if (captureQueue.some(t => t.tweet_id === tweetData.tweet_id)) return;
+
+    captureQueue.push(tweetData);
+
+    // Debounce sending to background
+    if (queueTimeout) clearTimeout(queueTimeout);
+    queueTimeout = setTimeout(flushCaptureQueue, CAPTURE_DEBOUNCE_MS);
+  }
+
+  /**
+   * Send queued captures to background script
+   */
+  async function flushCaptureQueue() {
+    if (captureQueue.length === 0) return;
+
+    const items = [...captureQueue];
+    captureQueue = [];
+
+    for (const item of items) {
+      try {
+        await chrome.runtime.sendMessage({
+          type: 'CAPTURE_RETWEET',
+          data: item
+        });
+        showCaptureIndicator(item);
+      } catch (error) {
+        console.error('[Retweet Filter] Error sending capture:', error);
+      }
+    }
+  }
+
+  /**
+   * Show visual indicator when a retweet is captured
+   * @param {Object} tweetData - Captured tweet data
+   */
+  function showCaptureIndicator(tweetData) {
+    // Create toast notification
+    const toast = document.createElement('div');
+    toast.className = 'rf-capture-toast';
+    toast.innerHTML = `
+      <svg viewBox="0 0 24 24" width="16" height="16">
+        <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+      </svg>
+      <span>Retweet captured</span>
+    `;
+
+    document.body.appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(() => {
+      toast.classList.add('rf-capture-toast-visible');
+    });
+
+    // Remove after delay
+    setTimeout(() => {
+      toast.classList.remove('rf-capture-toast-visible');
+      setTimeout(() => toast.remove(), 300);
+    }, 2000);
+  }
+
+  /**
+   * Handle retweet button click
+   * @param {Event} event - Click event
+   */
+  function handleRetweetClick(event) {
+    const target = event.target;
+
+    // Check if clicking retweet menu item
+    const menuItem = target.closest('[data-testid="retweetConfirm"], [data-testid="unretweet"]');
+    if (!menuItem) return;
+
+    // Find the tweet being retweeted
+    // The menu appears separately, so we need to find the focused/hovered tweet
+    // Note: :hover pseudo-selector doesn't work with querySelector, so we use tracked state
+    const focusedTweet = lastHoveredTweet ||
+                         findTweetUnderMouse() ||
+                         document.querySelector('article[data-testid="tweet"][aria-selected="true"]');
+
+    if (focusedTweet) {
+      const tweetData = extractTweetData(focusedTweet);
+      if (tweetData) {
+        queueCapture(tweetData);
+      }
+    }
+  }
+
+  /**
+   * Handle retweet via keyboard or other methods
+   * @param {Element} tweetElement - Tweet element
+   */
+  function handleRetweetAction(tweetElement) {
+    const tweetData = extractTweetData(tweetElement);
+    if (tweetData) {
+      queueCapture(tweetData);
+    }
+  }
+
+  /**
+   * Observe DOM mutations for retweet actions
+   */
+  function setupMutationObserver() {
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType !== Node.ELEMENT_NODE) continue;
+
+          // Check for retweet confirmation menu
+          const retweetConfirm = node.querySelector?.('[data-testid="retweetConfirm"]') ||
+                                 (node.getAttribute?.('data-testid') === 'retweetConfirm' ? node : null);
+
+          if (retweetConfirm && !retweetConfirm.hasAttribute(PROCESSED_MARKER)) {
+            retweetConfirm.setAttribute(PROCESSED_MARKER, 'true');
+
+            // Add click listener to capture when confirmed
+            retweetConfirm.addEventListener('click', () => {
+              // Find the tweet that was being interacted with
+              const tweets = document.querySelectorAll('article[data-testid="tweet"]');
+              for (const tweet of tweets) {
+                // Check if this tweet has an open retweet menu (button is pressed)
+                const retweetBtn = tweet.querySelector('[data-testid="retweet"]');
+                if (retweetBtn?.getAttribute('aria-pressed') === 'true' ||
+                    retweetBtn?.getAttribute('aria-expanded') === 'true') {
+                  handleRetweetAction(tweet);
+                  break;
+                }
+              }
+
+              // Fallback: capture hovered tweet using tracked state
+              const hoveredTweet = lastHoveredTweet || findTweetUnderMouse();
+              if (hoveredTweet) {
+                handleRetweetAction(hoveredTweet);
+              }
+            }, { once: true });
+          }
+
+          // Check for quote tweet button
+          const quoteButton = node.querySelector?.('[data-testid="Dropdown"] [role="menuitem"]');
+          if (quoteButton?.textContent?.includes('Quote')) {
+            // Quote tweets will be captured when they appear in the timeline
+          }
+        }
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    return observer;
+  }
+
+  /**
+   * Setup hover tracking for tweets
+   * Since :hover pseudo-selector doesn't work with querySelector, we track hover manually
+   */
+  function setupHoverTracking() {
+    // Track mouse position for elementFromPoint fallback
+    document.addEventListener('mousemove', (event) => {
+      lastMousePosition = { x: event.clientX, y: event.clientY };
+    }, { passive: true });
+
+    // Use event delegation to track tweet hover
+    document.addEventListener('mouseenter', (event) => {
+      const tweet = event.target.closest?.('article[data-testid="tweet"]') ||
+                    event.target.closest?.('article[role="article"]');
+      if (tweet) {
+        lastHoveredTweet = tweet;
+      }
+    }, { capture: true, passive: true });
+
+    document.addEventListener('mouseleave', (event) => {
+      const tweet = event.target.closest?.('article[data-testid="tweet"]') ||
+                    event.target.closest?.('article[role="article"]');
+      if (tweet && tweet === lastHoveredTweet) {
+        // Don't clear immediately - keep reference for a short time
+        // in case the mouse moved to a child element
+        setTimeout(() => {
+          if (lastHoveredTweet === tweet) {
+            // Check if mouse is still over this tweet
+            const elementUnderMouse = document.elementFromPoint(lastMousePosition.x, lastMousePosition.y);
+            if (!tweet.contains(elementUnderMouse)) {
+              lastHoveredTweet = null;
+            }
+          }
+        }, 100);
+      }
+    }, { capture: true, passive: true });
+  }
+
+  /**
+   * Find tweet under current mouse position
+   * @returns {Element|null} Tweet element or null
+   */
+  function findTweetUnderMouse() {
+    const element = document.elementFromPoint(lastMousePosition.x, lastMousePosition.y);
+    if (!element) return null;
+
+    return element.closest('article[data-testid="tweet"]') ||
+           element.closest('article[role="article"]') ||
+           element.closest('article');
+  }
+
+  /**
+   * Setup event listeners
+   */
+  function setupEventListeners() {
+    // Setup hover tracking first
+    setupHoverTracking();
+
+    // Global click handler for retweet buttons
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+
+      // Direct retweet button click
+      const retweetBtn = target.closest('[data-testid="retweet"]');
+      if (retweetBtn) {
+        // Store reference to the tweet for when menu appears
+        const tweet = findTweetArticle(retweetBtn);
+        if (tweet) {
+          window.__lastRetweetTarget = tweet;
+        }
+      }
+
+      // Retweet confirm in menu
+      const confirmBtn = target.closest('[data-testid="retweetConfirm"]');
+      if (confirmBtn) {
+        // Use stored reference or find hovered tweet (using tracked state)
+        const tweet = window.__lastRetweetTarget ||
+                     lastHoveredTweet ||
+                     findTweetUnderMouse();
+        if (tweet) {
+          handleRetweetAction(tweet);
+          window.__lastRetweetTarget = null;
+        }
+      }
+    }, true);
+
+    // Keyboard shortcuts (T for retweet in X)
+    document.addEventListener('keydown', (event) => {
+      if (event.key.toLowerCase() === 't' && !event.ctrlKey && !event.metaKey) {
+        // Check if a tweet is focused
+        const focusedTweet = document.activeElement?.closest('article[data-testid="tweet"]');
+        if (focusedTweet) {
+          // Will be captured when retweet menu confirms
+          window.__lastRetweetTarget = focusedTweet;
+        }
+      }
+    });
+  }
+
+  /**
+   * Find the best tweet to capture on the current page
+   * @returns {Element|null} Tweet element or null
+   */
+  function findBestTweetToCapture() {
+    // Multiple selector strategies - X may change these
+    const TWEET_SELECTORS = [
+      'article[data-testid="tweet"]',
+      'article[role="article"]',
+      '[data-testid="cellInnerDiv"] article',
+      'article'
+    ];
+
+    // Helper to find tweet with any selector
+    function findWithSelectors(suffix = '') {
+      for (const selector of TWEET_SELECTORS) {
+        const el = document.querySelector(selector + suffix);
+        if (el) return el;
+      }
+      return null;
+    }
+
+    // Helper to find all tweets
+    function findAllTweets() {
+      for (const selector of TWEET_SELECTORS) {
+        const els = document.querySelectorAll(selector);
+        if (els.length > 0) return els;
+      }
+      return [];
+    }
+
+    console.log('[Retweet Filter] Looking for tweet to capture...');
+
+    // On a single tweet page (x.com/user/status/123), find the main tweet
+    const url = window.location.href;
+    const isSingleTweetPage = url.match(/\/status\/\d+/);
+
+    if (isSingleTweetPage) {
+      // On single tweet page, the first/main tweet is what we want
+      const mainTweet = findWithSelectors();
+      if (mainTweet) {
+        console.log('[Retweet Filter] Found main tweet on single tweet page');
+        return mainTweet;
+      }
+    }
+
+    // Try to find a hovered tweet using tracked state (since :hover doesn't work with querySelector)
+    if (lastHoveredTweet && document.body.contains(lastHoveredTweet)) {
+      console.log('[Retweet Filter] Found tracked hovered tweet');
+      return lastHoveredTweet;
+    }
+
+    // Fallback: try to find tweet under current mouse position
+    const tweetUnderMouse = findTweetUnderMouse();
+    if (tweetUnderMouse) {
+      console.log('[Retweet Filter] Found tweet under mouse cursor');
+      return tweetUnderMouse;
+    }
+
+    // Try to find a selected/focused tweet
+    for (const selector of TWEET_SELECTORS) {
+      const selectedTweet = document.querySelector(selector + '[aria-selected="true"]');
+      if (selectedTweet) {
+        console.log('[Retweet Filter] Found selected tweet');
+        return selectedTweet;
+      }
+    }
+
+    // Try to find a tweet that's visible in the viewport
+    const allTweets = findAllTweets();
+    console.log('[Retweet Filter] Found', allTweets.length, 'total tweets on page');
+
+    // First pass: find tweet closest to center of viewport
+    const viewportHeight = window.innerHeight;
+    const viewportCenter = viewportHeight / 2;
+    let bestTweet = null;
+    let bestDistance = Infinity;
+
+    for (const tweet of allTweets) {
+      const rect = tweet.getBoundingClientRect();
+
+      // Skip tweets completely outside viewport
+      if (rect.bottom < 0 || rect.top > viewportHeight) continue;
+
+      // Calculate visible portion
+      const visibleTop = Math.max(0, rect.top);
+      const visibleBottom = Math.min(viewportHeight, rect.bottom);
+      const visibleHeight = visibleBottom - visibleTop;
+
+      // Skip tweets with very little visibility
+      if (visibleHeight < 50) continue;
+
+      // Calculate center of visible portion
+      const tweetCenter = visibleTop + visibleHeight / 2;
+      const distance = Math.abs(tweetCenter - viewportCenter);
+
+      // Prefer tweets closer to center of viewport
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestTweet = tweet;
+      }
+    }
+
+    if (bestTweet) {
+      console.log('[Retweet Filter] Found visible tweet closest to viewport center');
+      return bestTweet;
+    }
+
+    // Last resort: just get the first tweet
+    const firstTweet = findWithSelectors();
+    if (firstTweet) {
+      console.log('[Retweet Filter] Using first tweet as fallback');
+      return firstTweet;
+    }
+
+    console.log('[Retweet Filter] No tweet found on page. Selectors tried:', TWEET_SELECTORS);
+    return null;
+  }
+
+  /**
+   * Listen for messages from popup/background
+   */
+  function setupMessageListener() {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.type === 'MANUAL_CAPTURE') {
+        console.log('[Retweet Filter] Manual capture requested');
+
+        // Find the best tweet to capture
+        const tweet = findBestTweetToCapture();
+
+        if (tweet) {
+          const tweetData = extractTweetData(tweet);
+          console.log('[Retweet Filter] Extracted tweet data:', tweetData);
+
+          if (tweetData && tweetData.tweet_id) {
+            queueCapture(tweetData);
+            sendResponse({ success: true, data: tweetData });
+          } else {
+            sendResponse({ success: false, error: 'Could not extract tweet data' });
+          }
+        } else {
+          sendResponse({ success: false, error: 'No tweet found on page' });
+        }
+        return true;
+      }
+
+      if (message.type === 'GET_CURRENT_TWEET') {
+        // Get data of currently visible tweet
+        const tweet = findBestTweetToCapture();
+
+        if (tweet) {
+          const tweetData = extractTweetData(tweet);
+          sendResponse({ success: true, data: tweetData });
+        } else {
+          sendResponse({ success: false, error: 'No tweet found' });
+        }
+        return true;
+      }
+    });
+  }
+
+  /**
+   * Initialize the capture system
+   */
+  function init() {
+    console.log('[Retweet Filter] Initializing capture system');
+
+    setupEventListeners();
+    setupMutationObserver();
+    setupMessageListener();
+
+    console.log('[Retweet Filter] Capture system ready');
+  }
+
+  // Wait for DOM to be ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();

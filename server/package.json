@@ -1,0 +1,19 @@
+{
+  "name": "retweet-filter-api",
+  "version": "1.0.0",
+  "description": "Reference backend API for Retweet Filter extension",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": ["retweet", "twitter", "api", "sync"],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "cors": "^2.8.5",
+    "better-sqlite3": "^9.0.0",
+    "dotenv": "^16.0.3"
+  }
+}

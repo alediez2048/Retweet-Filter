@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retweet Archive - Retweet Filter</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div class="dashboard">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <svg viewBox="0 0 24 24" width="28" height="28">
+            <path fill="currentColor" d="M23.77 15.67c-.292-.293-.767-.293-1.06 0l-2.22 2.22V7.65c0-2.068-1.683-3.75-3.75-3.75h-5.85c-.414 0-.75.336-.75.75s.336.75.75.75h5.85c1.24 0 2.25 1.01 2.25 2.25v10.24l-2.22-2.22c-.293-.293-.768-.293-1.06 0s-.294.768 0 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5c.294-.292.294-.767 0-1.06zm-10.66 3.28H7.26c-1.24 0-2.25-1.01-2.25-2.25V6.46l2.22 2.22c.148.147.34.22.532.22s.384-.073.53-.22c.293-.293.293-.768 0-1.06l-3.5-3.5c-.293-.294-.768-.294-1.06 0l-3.5 3.5c-.294.292-.294.767 0 1.06s.767.293 1.06 0l2.22-2.22V16.7c0 2.068 1.683 3.75 3.75 3.75h5.85c.414 0 .75-.336.75-.75s-.337-.75-.75-.75z"/>
+          </svg>
+          <span>Retweet Filter</span>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="sidebar-stats">
+        <div class="stat-card">
+          <span class="stat-value" id="totalRetweets">0</span>
+          <span class="stat-label">Total Retweets</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="todayRetweets">0</span>
+          <span class="stat-label">Today</span>
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="archive">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+          </svg>
+          Archive
+        </button>
+        <button class="nav-item" data-view="categories">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/>
+          </svg>
+          Categories
+        </button>
+        <button class="nav-item" data-view="import">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+          </svg>
+          Import
+        </button>
+        <button class="nav-item" data-view="settings">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+          </svg>
+          Settings
+        </button>
+      </nav>
+
+      <!-- Tag Cloud -->
+      <div class="sidebar-section">
+        <h3>Tags</h3>
+        <div class="tag-cloud" id="tagCloud">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Saved Searches -->
+      <div class="sidebar-section">
+        <h3>Saved Searches</h3>
+        <div class="saved-searches" id="savedSearches">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Archive View -->
+      <div class="view active" id="archiveView">
+        <!-- Search Bar -->
+        <div class="search-bar">
+          <div class="search-input-wrapper">
+            <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20">
+              <path fill="currentColor" d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.53.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"/>
+            </svg>
+            <input type="text" id="searchInput" placeholder="Search retweets..." autocomplete="off">
+            <button id="saveSearch" class="save-search-btn" title="Save Search">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path fill="currentColor" d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-bar">
+          <div class="filter-chips" id="filterChips">
+            <!-- Category chips populated dynamically -->
+          </div>
+          <div class="filter-controls">
+            <select id="sourceFilter">
+              <option value="">All Sources</option>
+              <option value="browser">Browser Capture</option>
+              <option value="archive">X Archive</option>
+              <option value="csv">CSV Import</option>
+              <option value="nitter">Nitter</option>
+              <option value="manual">Manual</option>
+            </select>
+            <input type="date" id="startDate" placeholder="From">
+            <input type="date" id="endDate" placeholder="To">
+            <label class="checkbox-filter">
+              <input type="checkbox" id="hasMediaFilter">
+              Has Media
+            </label>
+          </div>
+        </div>
+
+        <!-- Bulk Actions -->
+        <div class="bulk-actions" id="bulkActions" hidden>
+          <span class="selected-count"><span id="selectedCount">0</span> selected</span>
+          <button id="bulkTag" class="bulk-btn">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/>
+            </svg>
+            Add Tags
+          </button>
+          <button id="bulkDelete" class="bulk-btn danger">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+            </svg>
+            Delete
+          </button>
+          <button id="clearSelection" class="bulk-btn">Clear Selection</button>
+        </div>
+
+        <!-- Results Info -->
+        <div class="results-info">
+          <span id="resultsCount">0 retweets</span>
+          <div class="view-toggle">
+            <button class="view-btn active" data-view="list" title="List View">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+              </svg>
+            </button>
+            <button class="view-btn" data-view="grid" title="Grid View">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path fill="currentColor" d="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Results List -->
+        <div class="results-container" id="resultsContainer">
+          <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <span>Loading retweets...</span>
+          </div>
+          <div class="empty-state" id="emptyState" hidden>
+            <svg viewBox="0 0 24 24" width="64" height="64">
+              <path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+            </svg>
+            <h3>No retweets found</h3>
+            <p>Try adjusting your search or filters</p>
+          </div>
+          <div class="results-list" id="resultsList">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination">
+          <button id="prevPage" class="page-btn" disabled>Previous</button>
+          <span class="page-info">Page <span id="currentPage">1</span> of <span id="totalPages">1</span></span>
+          <button id="nextPage" class="page-btn">Next</button>
+        </div>
+      </div>
+
+      <!-- Categories View -->
+      <div class="view" id="categoriesView">
+        <div class="view-header">
+          <h2>Categories</h2>
+          <button id="addCategory" class="primary-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            Add Category
+          </button>
+        </div>
+        <div class="categories-list" id="categoriesList">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Import View -->
+      <div class="view" id="importView">
+        <div class="view-header">
+          <h2>Import Data</h2>
+        </div>
+        <div class="import-options">
+          <div class="import-card">
+            <div class="import-icon">
+              <svg viewBox="0 0 24 24" width="32" height="32">
+                <path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+            </div>
+            <h3>X Data Export</h3>
+            <p>Import from your X/Twitter data archive (tweets.js file)</p>
+            <input type="file" id="archiveFile" accept=".js,.json" hidden>
+            <button class="import-btn" onclick="document.getElementById('archiveFile').click()">
+              Select Archive File
+            </button>
+          </div>
+          <div class="import-card">
+            <div class="import-icon">
+              <svg viewBox="0 0 24 24" width="32" height="32">
+                <path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.01l1.41 1.41L11 14.84V19h2v-4.16l1.59 1.59L16 15.01 12.01 11 8 15.01z"/>
+              </svg>
+            </div>
+            <h3>CSV Import</h3>
+            <p>Import from a CSV file with tweet data</p>
+            <input type="file" id="csvFile" accept=".csv" hidden>
+            <button class="import-btn" onclick="document.getElementById('csvFile').click()">
+              Select CSV File
+            </button>
+          </div>
+          <div class="import-card">
+            <div class="import-icon">
+              <svg viewBox="0 0 24 24" width="32" height="32">
+                <path fill="currentColor" d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20C5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27V4.44m0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93V10.1z"/>
+              </svg>
+            </div>
+            <h3>Nitter RSS</h3>
+            <p>Import from a Nitter RSS feed URL</p>
+            <input type="text" id="nitterUrl" class="nitter-input" placeholder="https://nitter.net/username/rss">
+            <button class="import-btn" id="importNitter">
+              Import from Nitter
+            </button>
+          </div>
+        </div>
+        <div class="import-progress" id="importProgress" hidden>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <span class="progress-text" id="progressText">Importing...</span>
+        </div>
+        <div class="import-results" id="importResults" hidden>
+          <h3>Import Complete</h3>
+          <p><span id="importedCount">0</span> new retweets imported</p>
+          <p><span id="duplicateCount">0</span> duplicates skipped</p>
+        </div>
+      </div>
+
+      <!-- Settings View -->
+      <div class="view" id="settingsView">
+        <div class="view-header">
+          <h2>Settings</h2>
+        </div>
+        <div class="settings-sections">
+          <section class="settings-section">
+            <h3>Auto-Tagging</h3>
+            <label class="toggle-setting">
+              <input type="checkbox" id="autoTagEnabled" checked>
+              <span class="toggle-label">Enable auto-tag suggestions</span>
+            </label>
+            <p class="setting-desc">Automatically suggest tags based on tweet content</p>
+          </section>
+
+          <section class="settings-section">
+            <h3>Sync (Optional)</h3>
+            <label class="toggle-setting">
+              <input type="checkbox" id="syncEnabled">
+              <span class="toggle-label">Enable sync to external server</span>
+            </label>
+            <div class="sync-settings" id="syncSettings" hidden>
+              <div class="form-group">
+                <label>Sync Endpoint</label>
+                <input type="url" id="syncEndpoint" placeholder="https://your-api.com/api/retweets/sync">
+              </div>
+              <div class="form-group">
+                <label>API Token</label>
+                <input type="password" id="syncToken" placeholder="Your API token">
+              </div>
+              <button id="testSync" class="secondary-btn">Test Connection</button>
+              <button id="syncNow" class="primary-btn">Sync Now</button>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <h3>Data Management</h3>
+            <button id="exportData" class="secondary-btn">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+              </svg>
+              Export All Data
+            </button>
+            <button id="clearData" class="danger-btn">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+              </svg>
+              Clear All Data
+            </button>
+          </section>
+
+          <section class="settings-section">
+            <h3>About</h3>
+            <p class="about-text">
+              Retweet Filter v1.0.0<br>
+              A privacy-first tool for archiving and organizing your retweets.<br>
+              Your data stays local unless you choose to sync.
+            </p>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <!-- Detail Modal -->
+    <div class="modal" id="detailModal" hidden>
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <button class="modal-close" id="closeModal">
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+          </svg>
+        </button>
+        <div class="modal-body" id="modalBody">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Tag Editor Modal -->
+    <div class="modal" id="tagModal" hidden>
+      <div class="modal-backdrop"></div>
+      <div class="modal-content modal-small">
+        <h3>Edit Tags</h3>
+        <div class="tag-editor">
+          <div class="current-tags" id="currentTags">
+            <!-- Populated dynamically -->
+          </div>
+          <div class="tag-input-wrapper">
+            <input type="text" id="newTagInput" placeholder="Add tag...">
+            <button id="addTagBtn" class="add-tag-btn">Add</button>
+          </div>
+          <div class="suggested-tags" id="suggestedTags">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="cancelTags" class="secondary-btn">Cancel</button>
+          <button id="saveTags" class="primary-btn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Editor Modal -->
+    <div class="modal" id="categoryModal" hidden>
+      <div class="modal-backdrop"></div>
+      <div class="modal-content modal-small">
+        <h3 id="categoryModalTitle">Add Category</h3>
+        <div class="form-group">
+          <label>Category Name</label>
+          <input type="text" id="categoryName" placeholder="e.g., Machine Learning">
+        </div>
+        <div class="form-group">
+          <label>Keywords (one per line)</label>
+          <textarea id="categoryKeywords" rows="6" placeholder="GPT&#10;neural network&#10;deep learning"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button id="cancelCategory" class="secondary-btn">Cancel</button>
+          <button id="saveCategory" class="primary-btn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
