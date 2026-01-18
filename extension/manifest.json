@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Retweet Filter",
-  "version": "1.2.0",
-  "description": "Capture, search, and organize your retweets locally without using X's API",
+  "version": "1.3.0",
+  "description": "Capture, search, and organize your retweets and Instagram posts locally without using APIs",
   "permissions": [
     "storage",
     "activeTab",
@@ -10,7 +10,9 @@
   ],
   "host_permissions": [
     "https://x.com/*",
-    "https://twitter.com/*"
+    "https://twitter.com/*",
+    "https://www.instagram.com/*",
+    "https://instagram.com/*"
   ],
   "optional_permissions": [
     "notifications"
@@ -23,6 +25,12 @@
       "matches": ["https://x.com/*", "https://twitter.com/*"],
       "js": ["src/content/capture.js"],
       "css": ["src/content/styles.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.instagram.com/*", "https://instagram.com/*"],
+      "js": ["src/content/instagram-capture.js"],
+      "css": ["src/content/instagram-styles.css"],
       "run_at": "document_idle"
     }
   ],
@@ -45,7 +53,7 @@
   "web_accessible_resources": [
     {
       "resources": ["src/lib/*.js", "src/dashboard/*"],
-      "matches": ["https://x.com/*", "https://twitter.com/*"]
+      "matches": ["https://x.com/*", "https://twitter.com/*", "https://www.instagram.com/*", "https://instagram.com/*"]
     }
   ],
   "content_security_policy": {

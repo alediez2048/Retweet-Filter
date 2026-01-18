@@ -132,6 +132,7 @@ const DEFAULT_CATEGORIES = {
 
 const MESSAGES = {
   CAPTURE_RETWEET: 'CAPTURE_RETWEET',
+  CAPTURE_INSTAGRAM: 'CAPTURE_INSTAGRAM',
   GET_RETWEETS: 'GET_RETWEETS',
   SEARCH_RETWEETS: 'SEARCH_RETWEETS',
   UPDATE_TAGS: 'UPDATE_TAGS',
@@ -270,6 +271,12 @@ function searchRetweets(retweets, query, filters = {}) {
           !retweet.user_name.toLowerCase().includes(authorLower)) {
         return false;
       }
+    }
+
+    // Platform filter (twitter or instagram)
+    if (filters.platform) {
+      const retweetPlatform = retweet.platform || 'twitter';
+      if (retweetPlatform !== filters.platform) return false;
     }
 
     return true;
@@ -438,6 +445,9 @@ class RetweetDB {
       // Source
       source: retweet.source || 'browser',
       source_url: retweet.source_url || '',
+
+      // Platform (twitter or instagram)
+      platform: retweet.platform || 'twitter',
 
       // Status
       is_available: true,
@@ -650,6 +660,12 @@ class RetweetDB {
       if (filters.hasMedia !== undefined) {
         const hasMedia = retweet.media && retweet.media.length > 0;
         if (filters.hasMedia !== hasMedia) return false;
+      }
+
+      // Platform filter (twitter or instagram)
+      if (filters.platform) {
+        const retweetPlatform = retweet.platform || 'twitter';
+        if (retweetPlatform !== filters.platform) return false;
       }
 
       return true;
@@ -1200,6 +1216,9 @@ async function handleMessage(message, sender) {
     case MESSAGES.CAPTURE_RETWEET:
       return captureRetweet(data);
 
+    case MESSAGES.CAPTURE_INSTAGRAM:
+      return captureInstagram(data);
+
     case MESSAGES.GET_RETWEETS:
       return getRetweetsHandler(data);
 
@@ -1282,6 +1301,7 @@ async function captureRetweet(data) {
 
     const retweet = await db.addRetweet({
       ...data,
+      platform: 'twitter',
       auto_tags: autoTags
     });
 
@@ -1299,6 +1319,44 @@ async function captureRetweet(data) {
     }
   } catch (error) {
     console.error('[Retweet Filter] Capture error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function captureInstagram(data) {
+  try {
+    console.log('[Instagram Filter] Capturing Instagram post with data:', {
+      post_id: data.post_id || data.tweet_id,
+      user_handle: data.user_handle,
+      has_avatar: !!data.user_avatar,
+      like_count: data.like_count,
+      post_type: data.post_type,
+      user_verified: data.user_verified
+    });
+
+    const categories = await db.getCategories();
+    const autoTags = suggestTags(data.text || '', categories);
+
+    const post = await db.addRetweet({
+      ...data,
+      platform: 'instagram',
+      auto_tags: autoTags
+    });
+
+    if (post) {
+      console.log('[Instagram Filter] Post saved successfully:', {
+        id: post.id,
+        has_avatar: !!post.user_avatar,
+        like_count: post.like_count,
+        platform: post.platform
+      });
+      updateBadge();
+      return { success: true, data: post };
+    } else {
+      return { success: false, error: 'Duplicate post' };
+    }
+  } catch (error) {
+    console.error('[Instagram Filter] Capture error:', error);
     return { success: false, error: error.message };
   }
 }

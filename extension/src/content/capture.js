@@ -32,6 +32,7 @@
   // Track the currently hovered tweet (since :hover doesn't work with querySelector)
   let lastHoveredTweet = null;
   let lastMousePosition = { x: 0, y: 0 };
+  let mousePositionInitialized = false;
 
   /**
    * Parse metric text (e.g., "1.2K", "15M", "123") to number
@@ -837,6 +838,7 @@
     // Track mouse position for elementFromPoint fallback
     document.addEventListener('mousemove', (event) => {
       lastMousePosition = { x: event.clientX, y: event.clientY };
+      mousePositionInitialized = true;
 
       // Also update hovered tweet on mouse move (more reliable than mouseenter)
       const element = document.elementFromPoint(event.clientX, event.clientY);
@@ -868,12 +870,15 @@
    * @returns {Element|null} Tweet element or null
    */
   function findTweetUnderMouse() {
+    // Only use mouse position if it has been initialized by actual mouse events
+    if (!mousePositionInitialized) return null;
+
     const element = document.elementFromPoint(lastMousePosition.x, lastMousePosition.y);
     if (!element) return null;
 
+    // Only match actual tweet articles, not generic articles
     return element.closest('article[data-testid="tweet"]') ||
-           element.closest('article[role="article"]') ||
-           element.closest('article');
+           element.closest('article[role="article"]');
   }
 
   /**

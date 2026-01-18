@@ -432,11 +432,23 @@ function setupEventListeners() {
         // Get active tab
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-        if (!tab || (!tab.url?.includes('x.com') && !tab.url?.includes('twitter.com'))) {
-          showToast('Please open X/Twitter first');
+        // Determine platform
+        const isTwitter = tab.url?.includes('x.com') || tab.url?.includes('twitter.com');
+        const isInstagram = tab.url?.includes('instagram.com');
+
+        if (!tab || (!isTwitter && !isInstagram)) {
+          showToast('Please open X/Twitter or Instagram first');
           resetCaptureButton();
           return;
         }
+
+        // Platform-specific configuration
+        const platform = isInstagram ? 'instagram' : 'twitter';
+        const messageType = isInstagram ? 'MANUAL_CAPTURE_INSTAGRAM' : 'MANUAL_CAPTURE';
+        const scriptFile = isInstagram ? 'src/content/instagram-capture.js' : 'src/content/capture.js';
+        const styleFile = isInstagram ? 'src/content/instagram-styles.css' : 'src/content/styles.css';
+        const successMessage = isInstagram ? 'Post captured!' : 'Retweet captured!';
+        const failMessage = isInstagram ? 'No post found to capture' : 'No tweet found to capture';
 
         // Helper function to attempt capture with retries
         async function attemptCapture(maxRetries = 3) {
@@ -445,27 +457,27 @@ function setupEventListeners() {
 
           for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-              console.log(`[Popup] Capture attempt ${attempt}/${maxRetries}`);
+              console.log(`[Popup] Capture attempt ${attempt}/${maxRetries} for ${platform}`);
 
               // Try to send message to content script
               let response;
               try {
-                response = await chrome.tabs.sendMessage(tab.id, { type: 'MANUAL_CAPTURE' });
+                response = await chrome.tabs.sendMessage(tab.id, { type: messageType });
               } catch (msgError) {
                 // Content script might not be loaded - try injecting it
-                console.log('[Popup] Content script not found, injecting...');
+                console.log(`[Popup] ${platform} content script not found, injecting...`);
                 await chrome.scripting.executeScript({
                   target: { tabId: tab.id },
-                  files: ['src/content/capture.js']
+                  files: [scriptFile]
                 });
                 await chrome.scripting.insertCSS({
                   target: { tabId: tab.id },
-                  files: ['src/content/styles.css']
+                  files: [styleFile]
                 });
                 // Wait for the script to initialize
                 await new Promise(resolve => setTimeout(resolve, 500));
                 // Retry the message
-                response = await chrome.tabs.sendMessage(tab.id, { type: 'MANUAL_CAPTURE' });
+                response = await chrome.tabs.sendMessage(tab.id, { type: messageType });
               }
 
               if (response && response.success) {
@@ -499,11 +511,11 @@ function setupEventListeners() {
         const response = await attemptCapture(3);
 
         if (response && response.success) {
-          showToast('Retweet captured!');
+          showToast(successMessage);
           await loadStats();
           await loadRetweets(searchInput ? searchInput.value.trim() : '', currentFilter);
         } else {
-          showToast(response?.error || 'No tweet found to capture');
+          showToast(response?.error || failMessage);
         }
       } catch (error) {
         console.error('Manual capture error:', error);

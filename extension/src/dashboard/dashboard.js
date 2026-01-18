@@ -200,6 +200,28 @@ function setupEventListeners() {
     saveSearchBtn.addEventListener('click', saveCurrentSearch);
   }
 
+  // Platform filters
+  const platformFilters = document.getElementById('platformFilters');
+  if (platformFilters) {
+    platformFilters.querySelectorAll('.platform-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Update active state
+        platformFilters.querySelectorAll('.platform-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Update filter
+        const platform = btn.dataset.platform;
+        if (platform) {
+          currentFilters.platform = platform;
+        } else {
+          delete currentFilters.platform;
+        }
+
+        loadRetweets();
+      });
+    });
+  }
+
   // Filters
   if (elements.sourceFilter) {
     elements.sourceFilter.addEventListener('change', () => {
@@ -577,6 +599,10 @@ function renderResults() {
       ? formatDate(item.original_created_at)
       : formatDate(item.captured_at);
 
+    // Platform detection (default to twitter for backward compatibility)
+    const platform = item.platform || 'twitter';
+    const platformBadge = `<span class="platform-badge ${platform}">${platform === 'twitter' ? 'X' : 'IG'}</span>`;
+
     // Quote tweet rendering
     const quotedTweet = item.quoted_tweet || (item.quoted_text ? {
       text: item.quoted_text,
@@ -584,7 +610,7 @@ function renderResults() {
     } : null);
 
     return `
-      <div class="result-item ${isSelected ? 'selected' : ''}" data-id="${item.id}">
+      <div class="result-item ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-platform="${platform}">
         <input type="checkbox" class="result-checkbox" ${isSelected ? 'checked' : ''}>
         <div class="result-item-header">
           ${hasAvatar
@@ -595,6 +621,7 @@ function renderResults() {
             <div class="result-header">
               <span class="result-name">${escapeHtml(item.user_name || item.user_handle)}</span>
               ${verificationBadge}
+              ${platformBadge}
               <span class="result-handle">@${escapeHtml(item.user_handle || '')}</span>
               <span class="result-dot">·</span>
               <span class="result-time">${displayDate}</span>
