@@ -277,7 +277,12 @@
     function isLikeButton(element) {
         if (!element) return false;
 
-        // Standard video like button
+        // Handle text nodes by using parent
+        if (element.nodeType !== Node.ELEMENT_NODE) {
+            return isLikeButton(element.parentElement);
+        }
+
+        // Standard video like button (component name)
         if (element.tagName === 'LIKE-BUTTON-VIEW-MODEL') return true;
         if (element.closest('like-button-view-model')) return true;
 
@@ -285,14 +290,14 @@
         if (element.id === 'like-button' || element.closest('#like-button')) return true;
 
         // Legacy / general check
-        const ariaLabel = element.getAttribute('aria-label') || '';
-        if (ariaLabel.toLowerCase().includes('like this video')) return true;
+        const ariaLabel = element.getAttribute?.('aria-label') || '';
+        if (ariaLabel && ariaLabel.toLowerCase().includes('like this video')) return true;
 
         // Closest button with like label
         const btn = element.closest('button');
         if (btn) {
             const label = btn.getAttribute('aria-label') || '';
-            if (label.toLowerCase().includes('like this video')) return true;
+            if (label && label.toLowerCase().includes('like this video')) return true;
         }
 
         return false;

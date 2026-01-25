@@ -762,12 +762,12 @@
       const isFav = isFavoriteButton(target) ||
         isFavoriteButton(target.closest('button')) ||
         isFavoriteButton(target.closest('div[role="button"]')) ||
-        isFavoriteButton(target.closest('svg')?.parentElement);
+        isFavoriteButton(target.closest('svg'));
 
       const isLike = isLikeButton(target) ||
         isLikeButton(target.closest('button')) ||
         isLikeButton(target.closest('div[role="button"]')) ||
-        isLikeButton(target.closest('span[data-e2e="like-icon"]'));
+        isLikeButton(target.closest('svg'));
 
       if (isFav || isLike) {
         // Check settings

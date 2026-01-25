@@ -795,12 +795,12 @@
       const isSave = isSaveButton(target) ||
         isSaveButton(target.closest('button')) ||
         isSaveButton(target.closest('div[role="button"]')) ||
-        isSaveButton(target.closest('svg')?.parentElement);
+        isSaveButton(target.closest('svg'));
 
       const isLike = isLikeButton(target) ||
         isLikeButton(target.closest('button')) ||
         isLikeButton(target.closest('div[role="button"]')) ||
-        isLikeButton(target.closest('svg')?.parentElement);
+        isLikeButton(target.closest('svg'));
 
       if (isSave || isLike) {
         // Check settings
