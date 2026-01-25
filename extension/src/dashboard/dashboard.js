@@ -1350,7 +1350,7 @@ function openDetailModal(id) {
       </div>
     ` : ''}
     <div style="display:flex;gap:12px">
-      <a href="${escapeHtml(retweet.source_url || '#')}" target="_blank" class="primary-btn">Open on X</a>
+      <a href="${escapeHtml(retweet.source_url || '#')}" target="_blank" class="primary-btn">Open on ${retweet.platform === 'instagram' ? 'Instagram' : retweet.platform === 'tiktok' ? 'TikTok' : 'X'}</a>
       <button class="secondary-btn" id="editTagsBtn" data-id="${id}">Edit Tags</button>
     </div>
   `;
