@@ -214,7 +214,7 @@ function cacheElements() {
   elements.totalPages = document.getElementById('totalPages');
   elements.prevPage = document.getElementById('prevPage');
   elements.nextPage = document.getElementById('nextPage');
-  elements.totalRetweets = document.getElementById('totalRetweets');
+  elements.totalCount = document.getElementById('totalCount');
   elements.todayRetweets = document.getElementById('todayRetweets');
   elements.tagCloud = document.getElementById('tagCloud');
   elements.savedSearches = document.getElementById('savedSearches');
@@ -470,7 +470,7 @@ async function loadStats() {
     console.log('[Dashboard] Stats response:', response);
 
     if (response && response.success) {
-      if (elements.totalRetweets) elements.totalRetweets.textContent = formatNumber(response.data.total);
+      if (elements.totalCount) elements.totalCount.textContent = formatNumber(response.data.total);
       if (elements.todayRetweets) elements.todayRetweets.textContent = formatNumber(response.data.today);
     }
   } catch (error) {
