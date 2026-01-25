@@ -63,9 +63,9 @@
 
 /* Light Theme */
 [data-theme="light"] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f9fafb;
-  --bg-tertiary: #f3f4f6;
+  --bg-primary: #f3f4f6;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e5e7eb;
   --bg-card: #ffffff;
   --bg-hover: #f3f4f6;
   --bg-elevated: #ffffff;
