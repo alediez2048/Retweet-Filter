@@ -134,6 +134,7 @@ const MESSAGES = {
   CAPTURE_RETWEET: 'CAPTURE_RETWEET',
   CAPTURE_INSTAGRAM: 'CAPTURE_INSTAGRAM',
   CAPTURE_TIKTOK: 'CAPTURE_TIKTOK',
+  CAPTURE_YOUTUBE: 'CAPTURE_YOUTUBE',
   GET_RETWEETS: 'GET_RETWEETS',
   SEARCH_RETWEETS: 'SEARCH_RETWEETS',
   UPDATE_TAGS: 'UPDATE_TAGS',
@@ -1224,6 +1225,10 @@ async function handleMessage(message, sender) {
     case 'CAPTURE_TIKTOK':
       return captureTikTok(data);
 
+    case MESSAGES.CAPTURE_YOUTUBE:
+    case 'CAPTURE_YOUTUBE':
+      return captureYouTube(data);
+
     case MESSAGES.GET_RETWEETS:
       return getRetweetsHandler(data);
 
@@ -1400,6 +1405,39 @@ async function captureTikTok(data) {
     }
   } catch (error) {
     console.error('[TikTok Filter] Capture error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function captureYouTube(data) {
+  try {
+    console.log('[YouTube Filter] Capturing YouTube video with data:', {
+      post_id: data.post_id || data.tweet_id,
+      user_handle: data.user_handle,
+      like_count: data.like_count
+    });
+
+    const categories = await db.getCategories();
+    const autoTags = suggestTags(data.text || '', categories);
+
+    const post = await db.addRetweet({
+      ...data,
+      platform: 'youtube',
+      auto_tags: autoTags
+    });
+
+    if (post) {
+      console.log('[YouTube Filter] Video saved successfully:', {
+        id: post.id,
+        platform: post.platform
+      });
+      updateBadge();
+      return { success: true, data: post };
+    } else {
+      return { success: false, error: 'Duplicate post' };
+    }
+  } catch (error) {
+    console.error('[YouTube Filter] Capture error:', error);
     return { success: false, error: error.message };
   }
 }

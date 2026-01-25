@@ -436,9 +436,10 @@ function setupEventListeners() {
         const isTwitter = tab.url?.includes('x.com') || tab.url?.includes('twitter.com');
         const isInstagram = tab.url?.includes('instagram.com');
         const isTikTok = tab.url?.includes('tiktok.com');
+        const isYouTube = tab.url?.includes('youtube.com') || tab.url?.includes('youtu.be');
 
-        if (!tab || (!isTwitter && !isInstagram && !isTikTok)) {
-          showToast('Please open X/Twitter, Instagram, or TikTok first');
+        if (!tab || (!isTwitter && !isInstagram && !isTikTok && !isYouTube)) {
+          showToast('Please open X, Instagram, TikTok, or YouTube first');
           resetCaptureButton();
           return;
         }
@@ -446,7 +447,14 @@ function setupEventListeners() {
         // Platform-specific configuration
         let platform, messageType, scriptFile, styleFile, successMessage, failMessage;
 
-        if (isTikTok) {
+        if (isYouTube) {
+          platform = 'youtube';
+          messageType = 'MANUAL_CAPTURE_YOUTUBE';
+          scriptFile = 'src/content/youtube-capture.js';
+          styleFile = 'src/content/youtube-styles.css';
+          successMessage = 'Video captured!';
+          failMessage = 'No YouTube video found to capture';
+        } else if (isTikTok) {
           platform = 'tiktok';
           messageType = 'MANUAL_CAPTURE_TIKTOK';
           scriptFile = 'src/content/tiktok-capture.js';

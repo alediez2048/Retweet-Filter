@@ -14,7 +14,9 @@
     "https://www.instagram.com/*",
     "https://instagram.com/*",
     "https://www.tiktok.com/*",
-    "https://tiktok.com/*"
+    "https://tiktok.com/*",
+    "https://www.youtube.com/*",
+    "https://youtube.com/*"
   ],
   "optional_permissions": [
     "notifications"
@@ -59,6 +61,19 @@
       ],
       "css": [
         "src/content/tiktok-styles.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*"
+      ],
+      "js": [
+        "src/content/youtube-capture.js"
+      ],
+      "css": [
+        "src/content/youtube-styles.css"
       ],
       "run_at": "document_idle"
     }

@@ -680,7 +680,7 @@ function renderResults() {
 
     // Platform detection (default to twitter for backward compatibility)
     const platform = item.platform || 'twitter';
-    const platformLabels = { twitter: 'X', instagram: 'IG', tiktok: 'TT' };
+    const platformLabels = { twitter: 'X', instagram: 'IG', tiktok: 'TT', youtube: 'YT' };
     const platformBadge = `<span class="platform-badge ${platform}">${platformLabels[platform] || platform.toUpperCase().substring(0, 2)}</span>`;
 
     // Quote tweet rendering
@@ -1350,7 +1350,7 @@ function openDetailModal(id) {
       </div>
     ` : ''}
     <div style="display:flex;gap:12px">
-      <a href="${escapeHtml(retweet.source_url || '#')}" target="_blank" class="primary-btn">Open on ${retweet.platform === 'instagram' ? 'Instagram' : retweet.platform === 'tiktok' ? 'TikTok' : 'X'}</a>
+      <a href="${escapeHtml(retweet.source_url || '#')}" target="_blank" class="primary-btn">Open on ${retweet.platform === 'instagram' ? 'Instagram' : retweet.platform === 'tiktok' ? 'TikTok' : retweet.platform === 'youtube' ? 'YouTube' : 'X'}</a>
       <button class="secondary-btn" id="editTagsBtn" data-id="${id}">Edit Tags</button>
     </div>
   `;

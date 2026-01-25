@@ -1,0 +1,33 @@
+/* Retweet Filter - YouTube Content Script Styles */
+
+/* Capture Toast Notification - YouTube themed */
+.rf-yt-capture-toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #FF0000;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: Roboto, Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 999999;
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.rf-yt-capture-toast-visible {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.rf-yt-capture-toast svg {
+    flex-shrink: 0;
+}

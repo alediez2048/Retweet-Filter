@@ -57,6 +57,8 @@
   --tiktok-accent: #ff0050;
   --tiktok-accent-light: rgba(255, 0, 80, 0.15);
   --tiktok-gradient: linear-gradient(135deg, #00f2ea, #ff0050);
+  --youtube-accent: #FF0000;
+  --youtube-accent-light: rgba(255, 0, 0, 0.15);
 }
 
 /* Light Theme */
@@ -783,6 +785,10 @@ body {
   background: var(--tiktok-gradient);
 }
 
+.result-item[data-platform="youtube"]::before {
+  background: var(--youtube-accent);
+}
+
 /* Platform Badges */
 .platform-badge {
   font-size: 9px;
@@ -807,6 +813,11 @@ body {
 .platform-badge.tiktok {
   background: var(--tiktok-accent-light);
   color: var(--tiktok-accent);
+}
+
+.platform-badge.youtube {
+  background: var(--youtube-accent-light);
+  color: var(--youtube-accent);
 }
 
 /* Platform Filter Buttons */
@@ -858,6 +869,12 @@ body {
   background: var(--tiktok-accent-light);
   border-color: var(--tiktok-accent);
   color: var(--tiktok-accent);
+}
+
+.platform-filter-btn[data-platform="youtube"].active {
+  background: var(--youtube-accent-light);
+  border-color: var(--youtube-accent);
+  color: var(--youtube-accent);
 }
 
 .platform-filter-btn svg {
