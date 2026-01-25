@@ -93,6 +93,13 @@ function formatNumber(num) {
   return num.toString();
 }
 
+const TEXT_TRUNCATE_LENGTH = 50;
+
+function truncateText(text, maxLength = TEXT_TRUNCATE_LENGTH) {
+  if (!text || text.length <= maxLength) return { truncated: text || '', isTruncated: false };
+  return { truncated: text.substring(0, maxLength) + '...', isTruncated: true, full: text };
+}
+
 // ==================== STATE ====================
 
 let currentView = 'archive';
@@ -681,6 +688,9 @@ function renderResults() {
       author: { handle: item.quoted_author }
     } : null);
 
+    // Text truncation
+    const textTruncation = truncateText(item.text);
+
     return `
       <div class="result-item ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-platform="${platform}">
         <input type="checkbox" class="result-checkbox" ${isSelected ? 'checked' : ''}>
@@ -700,7 +710,11 @@ function renderResults() {
             </div>
           </div>
         </div>
-        <div class="result-text">${escapeHtml(item.text || '')}</div>
+        <div class="result-text${textTruncation.isTruncated ? ' truncated' : ''}">
+          <span class="result-text-content">${escapeHtml(textTruncation.truncated)}</span>
+          <span class="result-text-full" hidden>${escapeHtml(textTruncation.full || '')}</span>
+          ${textTruncation.isTruncated ? '<button class="read-more-btn" data-action="toggle-text">Read more</button>' : ''}
+        </div>
         ${quotedTweet ? `
           <div class="result-quoted">
             <div class="result-quoted-header">
@@ -872,6 +886,31 @@ function handleResultClick(e) {
       case 'delete':
         deleteRetweet(actionBtn.dataset.id);
         break;
+    }
+    return;
+  }
+
+  // Read more toggle
+  const readMoreBtn = e.target.closest('.read-more-btn');
+  if (readMoreBtn) {
+    const textContainer = readMoreBtn.closest('.result-text');
+    const truncatedSpan = textContainer.querySelector('.result-text-content');
+    const fullSpan = textContainer.querySelector('.result-text-full');
+
+    if (fullSpan.hidden) {
+      // Expand
+      truncatedSpan.hidden = true;
+      fullSpan.hidden = false;
+      readMoreBtn.textContent = 'Show less';
+      textContainer.classList.remove('truncated');
+      textContainer.classList.add('expanded');
+    } else {
+      // Collapse
+      truncatedSpan.hidden = false;
+      fullSpan.hidden = true;
+      readMoreBtn.textContent = 'Read more';
+      textContainer.classList.remove('expanded');
+      textContainer.classList.add('truncated');
     }
     return;
   }
