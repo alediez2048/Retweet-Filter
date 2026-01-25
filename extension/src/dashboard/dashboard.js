@@ -1343,9 +1343,24 @@ function openDetailModal(id) {
     ` : ''}
     ${retweet.media && retweet.media.length > 0 ? `
       <div class="detail-media" style="margin-bottom:16px">
-        ${retweet.media.map(m => m.url || m.thumb_url ? `
-          <img src="${escapeHtml(m.url || m.thumb_url)}" alt="Media" style="max-width:100%;border-radius:12px;margin-bottom:8px">
-        ` : '').join('')}
+        ${retweet.media.map(m => {
+    // Determine best image source: thumb_url usually safer for videos/GIFs
+    const src = (m.type === 'video' || m.type === 'gif') ? (m.thumb_url || m.url) : (m.url || m.thumb_url);
+    const isVideo = m.type === 'video' || m.type === 'gif';
+
+    if (!src) return '';
+
+    return `
+            <div style="position:relative;display:inline-block;max-width:100%;margin-bottom:8px">
+              <img src="${escapeHtml(src)}" alt="${m.type || 'Media'}" style="max-width:100%;border-radius:12px;display:block">
+              ${isVideo ? `
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;background:rgba(0,0,0,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+                  <svg viewBox="0 0 24 24" width="24" height="24" style="color:white;fill:currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+              ` : ''}
+            </div>
+          `;
+  }).join('')}
       </div>
     ` : ''}
     <div class="detail-meta" style="color:var(--text-secondary);font-size:14px;margin-bottom:16px">
