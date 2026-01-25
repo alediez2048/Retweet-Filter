@@ -1221,6 +1221,7 @@ async function handleMessage(message, sender) {
       return captureInstagram(data);
 
     case MESSAGES.CAPTURE_TIKTOK:
+    case 'CAPTURE_TIKTOK':
       return captureTikTok(data);
 
     case MESSAGES.GET_RETWEETS:
