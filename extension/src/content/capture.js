@@ -3,7 +3,7 @@
  * Uses MutationObserver and event delegation to detect retweet actions
  */
 
-(function() {
+(function () {
   'use strict';
 
   // Version for detecting updates
@@ -259,8 +259,8 @@
       const replyButton = tweetElement.querySelector('[data-testid="reply"]');
       if (replyButton) {
         const replyText = replyButton.querySelector('span[data-testid="app-text-transition-container"]')?.textContent ||
-                          replyButton.querySelector('[dir="ltr"]')?.textContent ||
-                          replyButton.textContent;
+          replyButton.querySelector('[dir="ltr"]')?.textContent ||
+          replyButton.textContent;
         metrics.replies = parseMetric(replyText);
       }
 
@@ -268,8 +268,8 @@
       const retweetButton = tweetElement.querySelector('[data-testid="retweet"]');
       if (retweetButton) {
         const retweetText = retweetButton.querySelector('span[data-testid="app-text-transition-container"]')?.textContent ||
-                            retweetButton.querySelector('[dir="ltr"]')?.textContent ||
-                            retweetButton.textContent;
+          retweetButton.querySelector('[dir="ltr"]')?.textContent ||
+          retweetButton.textContent;
         metrics.retweets = parseMetric(retweetText);
       }
 
@@ -277,8 +277,8 @@
       const likeButton = tweetElement.querySelector('[data-testid="like"]');
       if (likeButton) {
         const likeText = likeButton.querySelector('span[data-testid="app-text-transition-container"]')?.textContent ||
-                         likeButton.querySelector('[dir="ltr"]')?.textContent ||
-                         likeButton.textContent;
+          likeButton.querySelector('[dir="ltr"]')?.textContent ||
+          likeButton.textContent;
         metrics.likes = parseMetric(likeText);
       }
 
@@ -299,7 +299,7 @@
       const bookmarkButton = tweetElement.querySelector('[data-testid="bookmark"]');
       if (bookmarkButton) {
         const bookmarkText = bookmarkButton.querySelector('span[data-testid="app-text-transition-container"]')?.textContent ||
-                             bookmarkButton.querySelector('[dir="ltr"]')?.textContent;
+          bookmarkButton.querySelector('[dir="ltr"]')?.textContent;
         metrics.bookmarks = parseMetric(bookmarkText);
       }
 
@@ -366,7 +366,7 @@
       const cardLink = card.querySelector('a[href]');
       const cardImage = card.querySelector('img');
       const cardTitle = card.querySelector('[data-testid="card.layoutLarge.media"] + div span') ||
-                        card.querySelector('span[dir="ltr"]');
+        card.querySelector('span[dir="ltr"]');
 
       return {
         url: cardLink?.href || '',
@@ -388,7 +388,7 @@
     try {
       // Quote tweet container
       const quoteTweetContainer = tweetElement.querySelector('[data-testid="quoteTweet"]') ||
-                                   tweetElement.querySelector('div[role="link"][tabindex="0"]');
+        tweetElement.querySelector('div[role="link"][tabindex="0"]');
 
       if (!quoteTweetContainer) return null;
 
@@ -753,8 +753,8 @@
     // The menu appears separately, so we need to find the focused/hovered tweet
     // Note: :hover pseudo-selector doesn't work with querySelector, so we use tracked state
     const focusedTweet = lastHoveredTweet ||
-                         findTweetUnderMouse() ||
-                         document.querySelector('article[data-testid="tweet"][aria-selected="true"]');
+      findTweetUnderMouse() ||
+      document.querySelector('article[data-testid="tweet"][aria-selected="true"]');
 
     if (focusedTweet) {
       const tweetData = extractTweetData(focusedTweet);
@@ -786,7 +786,7 @@
 
           // Check for retweet confirmation menu
           const retweetConfirm = node.querySelector?.('[data-testid="retweetConfirm"]') ||
-                                 (node.getAttribute?.('data-testid') === 'retweetConfirm' ? node : null);
+            (node.getAttribute?.('data-testid') === 'retweetConfirm' ? node : null);
 
           if (retweetConfirm && !retweetConfirm.hasAttribute(PROCESSED_MARKER)) {
             retweetConfirm.setAttribute(PROCESSED_MARKER, 'true');
@@ -799,7 +799,7 @@
                 // Check if this tweet has an open retweet menu (button is pressed)
                 const retweetBtn = tweet.querySelector('[data-testid="retweet"]');
                 if (retweetBtn?.getAttribute('aria-pressed') === 'true' ||
-                    retweetBtn?.getAttribute('aria-expanded') === 'true') {
+                  retweetBtn?.getAttribute('aria-expanded') === 'true') {
                   handleRetweetAction(tweet);
                   break;
                 }
@@ -844,7 +844,7 @@
       const element = document.elementFromPoint(event.clientX, event.clientY);
       if (element) {
         const tweet = element.closest('article[data-testid="tweet"]') ||
-                      element.closest('article[role="article"]');
+          element.closest('article[role="article"]');
         if (tweet) {
           lastHoveredTweet = tweet;
         }
@@ -854,7 +854,7 @@
     // Use mouseover (bubbles) instead of mouseenter for better event delegation
     document.addEventListener('mouseover', (event) => {
       const tweet = event.target.closest?.('article[data-testid="tweet"]') ||
-                    event.target.closest?.('article[role="article"]');
+        event.target.closest?.('article[role="article"]');
       if (tweet) {
         lastHoveredTweet = tweet;
         console.log('[Retweet Filter] Hover tracked on tweet');
@@ -878,7 +878,7 @@
 
     // Only match actual tweet articles, not generic articles
     return element.closest('article[data-testid="tweet"]') ||
-           element.closest('article[role="article"]');
+      element.closest('article[role="article"]');
   }
 
   /**
@@ -907,8 +907,8 @@
       if (confirmBtn) {
         // Use stored reference or find hovered tweet (using tracked state)
         const tweet = window.__lastRetweetTarget ||
-                     lastHoveredTweet ||
-                     findTweetUnderMouse();
+          lastHoveredTweet ||
+          findTweetUnderMouse();
         if (tweet) {
           handleRetweetAction(tweet);
           window.__lastRetweetTarget = null;
@@ -1100,9 +1100,41 @@
   }
 
   /**
+   * Check if we're on a valid page for tweet capture
+   * @returns {boolean} True if this page should have tweet capture
+   */
+  function isValidCapturePage() {
+    const path = window.location.pathname;
+    // Skip X special pages (settings, flows, login, etc.)
+    const skipPatterns = [
+      /^\/i\//,           // /i/flow/, /i/connect/, etc.
+      /^\/settings/,       // Settings pages
+      /^\/login/,          // Login
+      /^\/logout/,         // Logout
+      /^\/signup/,         // Signup
+      /^\/account\//,      // Account settings
+      /^\/messages/        // DMs
+    ];
+
+    for (const pattern of skipPatterns) {
+      if (pattern.test(path)) {
+        console.log('[Retweet Filter] Skipping special page:', path);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
    * Initialize the capture system
    */
   function init() {
+    // Skip initialization on special pages
+    if (!isValidCapturePage()) {
+      console.log('[Retweet Filter] Not initializing on this page');
+      return;
+    }
+
     console.log('[Retweet Filter] Initializing capture system');
 
     setupEventListeners();
