@@ -23,6 +23,14 @@
   window.__retweetFilterInjected = SCRIPT_VERSION;
   console.log('[Retweet Filter] Content script v' + SCRIPT_VERSION + ' loading...');
 
+  const DUPLICATE_WINDOW_MS = 5000;
+
+  let captureTriggers = {
+    twitter: { retweet: true, like: true },
+    tiktok: { favorite: true, like: true },
+    instagram: { save: true, like: true },
+    youtube: { like: true }
+  };
   const CAPTURE_DEBOUNCE_MS = 300;
   const PROCESSED_MARKER = 'data-rf-processed';
 
@@ -477,7 +485,12 @@
    * @param {Element} tweetElement - Tweet article element
    * @returns {Object|null} Tweet data or null
    */
-  function extractTweetData(tweetElement) {
+  function handleRetweetAction(tweetElement) {
+    if (!captureTriggers.twitter?.retweet) {
+      console.log('[Retweet Filter] Retweet capture disabled in settings');
+      return null;
+    }
+
     if (!tweetElement) return null;
 
     try {
@@ -918,6 +931,12 @@
       // Like button click
       const likeBtn = target.closest('[data-testid="like"]');
       if (likeBtn) {
+        // Check settings
+        if (!captureTriggers.twitter?.like) {
+          log('Like capture disabled in settings');
+          return;
+        }
+
         const tweet = findTweetArticle(likeBtn);
         if (tweet) {
           // Add small delay to let UI update (though we don't rely on liked state for capture)
@@ -1152,6 +1171,22 @@
     }
 
     console.log('[Retweet Filter] Initializing capture system');
+
+    // Load settings
+    chrome.storage.sync.get(['captureTriggers'], (result) => {
+      if (result.captureTriggers) {
+        captureTriggers = result.captureTriggers;
+        log('Loaded triggers:', captureTriggers);
+      }
+    });
+
+    // Listen for setting changes
+    chrome.storage.onChanged.addListener((changes) => {
+      if (changes.captureTriggers) {
+        captureTriggers = changes.captureTriggers.newValue;
+        log('Updated triggers:', captureTriggers);
+      }
+    });
 
     setupEventListeners();
     setupMutationObserver();

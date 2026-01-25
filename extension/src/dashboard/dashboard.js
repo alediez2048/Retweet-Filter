@@ -30,6 +30,13 @@ const DEFAULT_CATEGORIES = {
   'Science': ['research', 'paper', 'study', 'scientists', 'discovery', 'experiment', 'hypothesis']
 };
 
+const DEFAULT_TRIGGERS = {
+  twitter: { retweet: true, like: true },
+  tiktok: { favorite: true, like: true },
+  instagram: { save: true, like: true },
+  youtube: { like: true }
+};
+
 // ==================== INLINED UTILITY FUNCTIONS ====================
 
 function formatDate(date) {
@@ -1499,6 +1506,81 @@ function showImportResults(response) {
   }
 }
 
+// ==================== SETTINGS ====================
+
+function setupTriggerSettings() {
+  // Load settings
+  chrome.storage.sync.get(['captureTriggers'], (result) => {
+    const triggers = result.captureTriggers || DEFAULT_TRIGGERS;
+
+    // Apply to checkboxes
+    applyTriggerSetting('twitter', 'retweet', triggers);
+    applyTriggerSetting('twitter', 'like', triggers);
+
+    applyTriggerSetting('tiktok', 'favorite', triggers);
+    applyTriggerSetting('tiktok', 'like', triggers);
+
+    applyTriggerSetting('instagram', 'save', triggers);
+    applyTriggerSetting('instagram', 'like', triggers);
+
+    applyTriggerSetting('youtube', 'like', triggers);
+  });
+
+  // Setup listeners
+  setupTriggerListener('twitter', 'retweet');
+  setupTriggerListener('twitter', 'like');
+
+  setupTriggerListener('tiktok', 'favorite');
+  setupTriggerListener('tiktok', 'like');
+
+  setupTriggerListener('instagram', 'save');
+  setupTriggerListener('instagram', 'like');
+
+  setupTriggerListener('youtube', 'like');
+}
+
+function applyTriggerSetting(platform, action, triggers) {
+  const checkbox = document.getElementById(`trigger_${platform}_${action}`);
+  if (checkbox) {
+    // Check if platform config exists, otherwise default to true (safe fallback)
+    const val = triggers[platform]?.[action] ?? true;
+    checkbox.checked = val;
+  }
+}
+
+function setupTriggerListener(platform, action) {
+  const checkbox = document.getElementById(`trigger_${platform}_${action}`);
+  if (checkbox) {
+    checkbox.addEventListener('change', () => {
+      saveTriggerSettings();
+    });
+  }
+}
+
+function saveTriggerSettings() {
+  const triggers = {
+    twitter: {
+      retweet: document.getElementById('trigger_twitter_retweet')?.checked ?? true,
+      like: document.getElementById('trigger_twitter_like')?.checked ?? true
+    },
+    tiktok: {
+      favorite: document.getElementById('trigger_tiktok_favorite')?.checked ?? true,
+      like: document.getElementById('trigger_tiktok_like')?.checked ?? true
+    },
+    instagram: {
+      save: document.getElementById('trigger_instagram_save')?.checked ?? true,
+      like: document.getElementById('trigger_instagram_like')?.checked ?? true
+    },
+    youtube: {
+      like: document.getElementById('trigger_youtube_like')?.checked ?? true
+    }
+  };
+
+  chrome.storage.sync.set({ captureTriggers: triggers }, () => {
+    console.log('[Dashboard] Saved trigger settings:', triggers);
+  });
+}
+
 // ==================== EXPORT/CLEAR ====================
 
 async function exportData() {
@@ -1544,4 +1626,7 @@ async function clearAllData() {
 
 // ==================== INITIALIZE ====================
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+  setupTriggerSettings();
+});

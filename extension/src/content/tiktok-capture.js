@@ -26,6 +26,13 @@
   const recentlyCaptured = new Set();
   const DUPLICATE_WINDOW_MS = 5000;
 
+  let captureTriggers = {
+    twitter: { retweet: true, like: true },
+    tiktok: { favorite: true, like: true },
+    instagram: { save: true, like: true },
+    youtube: { like: true }
+  };
+
   /**
    * Extract video ID from URL
    */
@@ -752,14 +759,26 @@
     document.addEventListener('click', (event) => {
       const target = event.target;
 
-      if (isFavoriteButton(target) ||
+      const isFav = isFavoriteButton(target) ||
         isFavoriteButton(target.closest('button')) ||
         isFavoriteButton(target.closest('div[role="button"]')) ||
-        isFavoriteButton(target.closest('svg')?.parentElement) ||
-        isLikeButton(target) ||
+        isFavoriteButton(target.closest('svg')?.parentElement);
+
+      const isLike = isLikeButton(target) ||
         isLikeButton(target.closest('button')) ||
         isLikeButton(target.closest('div[role="button"]')) ||
-        isLikeButton(target.closest('span[data-e2e="like-icon"]'))) {
+        isLikeButton(target.closest('span[data-e2e="like-icon"]'));
+
+      if (isFav || isLike) {
+        // Check settings
+        if (isFav && !captureTriggers.tiktok?.favorite) {
+          log('Favorite capture disabled in settings');
+          return;
+        }
+        if (isLike && !captureTriggers.tiktok?.like) {
+          log('Like capture disabled in settings');
+          return;
+        }
 
         log('Favorite/Like button clicked!');
 
@@ -800,6 +819,23 @@
    */
   function init() {
     log('Initializing...');
+
+    // Load settings
+    chrome.storage.sync.get(['captureTriggers'], (result) => {
+      if (result.captureTriggers) {
+        captureTriggers = result.captureTriggers;
+        log('Loaded triggers:', captureTriggers);
+      }
+    });
+
+    // Listen for setting changes
+    chrome.storage.onChanged.addListener((changes) => {
+      if (changes.captureTriggers) {
+        captureTriggers = changes.captureTriggers.newValue;
+        log('Updated triggers:', captureTriggers);
+      }
+    });
+
     setupClickListener();
     setupMessageListener();
     log('Ready - click a favorite/save button to capture');

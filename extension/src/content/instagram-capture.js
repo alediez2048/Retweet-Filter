@@ -26,6 +26,13 @@
   const recentlyCaptured = new Set();
   const DUPLICATE_WINDOW_MS = 5000;
 
+  let captureTriggers = {
+    twitter: { retweet: true, like: true },
+    tiktok: { favorite: true, like: true },
+    instagram: { save: true, like: true },
+    youtube: { like: true }
+  };
+
   /**
    * Extract post ID from URL
    */
@@ -785,14 +792,26 @@
     document.addEventListener('click', (event) => {
       const target = event.target;
 
-      if (isSaveButton(target) ||
+      const isSave = isSaveButton(target) ||
         isSaveButton(target.closest('button')) ||
         isSaveButton(target.closest('div[role="button"]')) ||
-        isSaveButton(target.closest('svg')?.parentElement) ||
-        isLikeButton(target) ||
+        isSaveButton(target.closest('svg')?.parentElement);
+
+      const isLike = isLikeButton(target) ||
         isLikeButton(target.closest('button')) ||
         isLikeButton(target.closest('div[role="button"]')) ||
-        isLikeButton(target.closest('svg')?.parentElement)) {
+        isLikeButton(target.closest('svg')?.parentElement);
+
+      if (isSave || isLike) {
+        // Check settings
+        if (isSave && !captureTriggers.instagram?.save) {
+          log('Save capture disabled in settings');
+          return;
+        }
+        if (isLike && !captureTriggers.instagram?.like) {
+          log('Like capture disabled in settings');
+          return;
+        }
 
         log('Save/Like button clicked!');
 
@@ -833,6 +852,23 @@
    */
   function init() {
     log('Initializing...');
+
+    // Load settings
+    chrome.storage.sync.get(['captureTriggers'], (result) => {
+      if (result.captureTriggers) {
+        captureTriggers = result.captureTriggers;
+        log('Loaded triggers:', captureTriggers);
+      }
+    });
+
+    // Listen for setting changes
+    chrome.storage.onChanged.addListener((changes) => {
+      if (changes.captureTriggers) {
+        captureTriggers = changes.captureTriggers.newValue;
+        log('Updated triggers:', captureTriggers);
+      }
+    });
+
     setupClickListener();
     setupMessageListener();
     log('Ready - click a save button to capture');

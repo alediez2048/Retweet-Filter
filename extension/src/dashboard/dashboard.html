@@ -394,6 +394,83 @@
           </section>
 
           <section class="settings-section">
+            <h3>Capture Triggers</h3>
+            <p style="margin-bottom:16px;color:var(--text-secondary);font-size:14px">Choose which actions automatically
+              capture content.</p>
+
+            <div class="trigger-settings">
+              <!-- Twitter -->
+              <div class="trigger-group">
+                <h4 style="margin-bottom:8px;font-size:14px;color:var(--text-primary)">X / Twitter</h4>
+                <label class="toggle-row">
+                  <span>Retweets</span>
+                  <div class="toggle-wrapper">
+                    <input type="checkbox" id="trigger_twitter_retweet" checked>
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+                <label class="toggle-row">
+                  <span>Likes</span>
+                  <div class="toggle-wrapper">
+                    <input type="checkbox" id="trigger_twitter_like" checked>
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <!-- TikTok -->
+              <div class="trigger-group">
+                <h4 style="margin-bottom:8px;font-size:14px;color:var(--text-primary)">TikTok</h4>
+                <label class="toggle-row">
+                  <span>Favorites</span>
+                  <div class="toggle-wrapper">
+                    <input type="checkbox" id="trigger_tiktok_favorite" checked>
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+                <label class="toggle-row">
+                  <span>Likes</span>
+                  <div class="toggle-wrapper">
+                    <input type="checkbox" id="trigger_tiktok_like" checked>
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Instagram -->
+              <div class="trigger-group">
+                <h4 style="margin-bottom:8px;font-size:14px;color:var(--text-primary)">Instagram</h4>
+                <label class="toggle-row">
+                  <span>Saves / Bookmarks</span>
+                  <div class="toggle-wrapper">
+                    <input type="checkbox" id="trigger_instagram_save" checked>
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+                <label class="toggle-row">
+                  <span>Likes</span>
+                  <div class="toggle-wrapper">
+                    <input type="checkbox" id="trigger_instagram_like" checked>
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <!-- YouTube -->
+              <div class="trigger-group">
+                <h4 style="margin-bottom:8px;font-size:14px;color:var(--text-primary)">YouTube</h4>
+                <label class="toggle-row">
+                  <span>Likes</span>
+                  <div class="toggle-wrapper">
+                    <input type="checkbox" id="trigger_youtube_like" checked>
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section">
             <h3>Data Management</h3>
             <button id="exportData" class="secondary-btn">
               <svg viewBox="0 0 24 24" width="16" height="16">

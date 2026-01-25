@@ -25,6 +25,13 @@
     const PROCESSED_MARKER = 'data-rf-processed';
     const DUPLICATE_WINDOW_MS = 10000;
 
+    let captureTriggers = {
+        twitter: { retweet: true, like: true },
+        tiktok: { favorite: true, like: true },
+        instagram: { save: true, like: true },
+        youtube: { like: true }
+    };
+
     let captureQueue = [];
     let queueTimeout = null;
     const recentlyCaptured = new Set(); // Prevent immediate duplicate captures
@@ -299,6 +306,11 @@
             const target = event.target;
 
             if (isLikeButton(target)) {
+                if (!captureTriggers.youtube?.like) {
+                    log('Like capture disabled in settings');
+                    return;
+                }
+
                 log('Like button clicked!');
 
                 // Delay capture to allow UI update
@@ -322,6 +334,23 @@
 
     function init() {
         log('Initializing capture system');
+
+        // Load settings
+        chrome.storage.sync.get(['captureTriggers'], (result) => {
+            if (result.captureTriggers) {
+                captureTriggers = result.captureTriggers;
+                log('Loaded triggers:', captureTriggers);
+            }
+        });
+
+        // Listen for setting changes
+        chrome.storage.onChanged.addListener((changes) => {
+            if (changes.captureTriggers) {
+                captureTriggers = changes.captureTriggers.newValue;
+                log('Updated triggers:', captureTriggers);
+            }
+        });
+
         setupClickListener();
         setupMessageListener();
         log('Ready');
