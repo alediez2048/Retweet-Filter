@@ -12,7 +12,9 @@
     "https://x.com/*",
     "https://twitter.com/*",
     "https://www.instagram.com/*",
-    "https://instagram.com/*"
+    "https://instagram.com/*",
+    "https://www.tiktok.com/*",
+    "https://tiktok.com/*"
   ],
   "optional_permissions": [
     "notifications"
@@ -22,15 +24,42 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://x.com/*", "https://twitter.com/*"],
-      "js": ["src/content/capture.js"],
-      "css": ["src/content/styles.css"],
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "src/content/capture.js"
+      ],
+      "css": [
+        "src/content/styles.css"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://www.instagram.com/*", "https://instagram.com/*"],
-      "js": ["src/content/instagram-capture.js"],
-      "css": ["src/content/instagram-styles.css"],
+      "matches": [
+        "https://www.instagram.com/*",
+        "https://instagram.com/*"
+      ],
+      "js": [
+        "src/content/instagram-capture.js"
+      ],
+      "css": [
+        "src/content/instagram-styles.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.tiktok.com/*",
+        "https://tiktok.com/*"
+      ],
+      "js": [
+        "src/content/tiktok-capture.js"
+      ],
+      "css": [
+        "src/content/tiktok-styles.css"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -52,8 +81,16 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["src/lib/*.js", "src/dashboard/*"],
-      "matches": ["https://x.com/*", "https://twitter.com/*", "https://www.instagram.com/*", "https://instagram.com/*"]
+      "resources": [
+        "src/lib/*.js",
+        "src/dashboard/*"
+      ],
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*",
+        "https://www.instagram.com/*",
+        "https://instagram.com/*"
+      ]
     }
   ],
   "content_security_policy": {

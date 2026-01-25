@@ -54,6 +54,9 @@
   --instagram-accent: #E1306C;
   --instagram-accent-light: rgba(225, 48, 108, 0.15);
   --instagram-gradient: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  --tiktok-accent: #ff0050;
+  --tiktok-accent-light: rgba(255, 0, 80, 0.15);
+  --tiktok-gradient: linear-gradient(135deg, #00f2ea, #ff0050);
 }
 
 /* Light Theme */
@@ -776,6 +779,10 @@ body {
   background: var(--instagram-gradient);
 }
 
+.result-item[data-platform="tiktok"]::before {
+  background: var(--tiktok-gradient);
+}
+
 /* Platform Badges */
 .platform-badge {
   font-size: 9px;
@@ -795,6 +802,11 @@ body {
 .platform-badge.instagram {
   background: var(--instagram-accent-light);
   color: var(--instagram-accent);
+}
+
+.platform-badge.tiktok {
+  background: var(--tiktok-accent-light);
+  color: var(--tiktok-accent);
 }
 
 /* Platform Filter Buttons */
@@ -840,6 +852,12 @@ body {
   background: var(--instagram-accent-light);
   border-color: var(--instagram-accent);
   color: var(--instagram-accent);
+}
+
+.platform-filter-btn[data-platform="tiktok"].active {
+  background: var(--tiktok-accent-light);
+  border-color: var(--tiktok-accent);
+  color: var(--tiktok-accent);
 }
 
 .platform-filter-btn svg {

@@ -133,6 +133,7 @@ const DEFAULT_CATEGORIES = {
 const MESSAGES = {
   CAPTURE_RETWEET: 'CAPTURE_RETWEET',
   CAPTURE_INSTAGRAM: 'CAPTURE_INSTAGRAM',
+  CAPTURE_TIKTOK: 'CAPTURE_TIKTOK',
   GET_RETWEETS: 'GET_RETWEETS',
   SEARCH_RETWEETS: 'SEARCH_RETWEETS',
   UPDATE_TAGS: 'UPDATE_TAGS',
@@ -157,7 +158,7 @@ const SEARCH_OPTIONS = {
 // ==================== UTILITY FUNCTIONS ====================
 
 function generateId() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
@@ -268,7 +269,7 @@ function searchRetweets(retweets, query, filters = {}) {
     if (filters.author) {
       const authorLower = filters.author.toLowerCase();
       if (!retweet.user_handle.toLowerCase().includes(authorLower) &&
-          !retweet.user_name.toLowerCase().includes(authorLower)) {
+        !retweet.user_name.toLowerCase().includes(authorLower)) {
         return false;
       }
     }
@@ -942,8 +943,8 @@ async function importArchive(data) {
       const tweet = item.tweet || item;
 
       const isRetweet = tweet.full_text?.startsWith('RT @') ||
-                        tweet.retweeted_status ||
-                        tweet.text?.startsWith('RT @');
+        tweet.retweeted_status ||
+        tweet.text?.startsWith('RT @');
       const isQuote = tweet.is_quote_status || tweet.quoted_status;
 
       if (!isRetweet && !isQuote) continue;
@@ -1219,6 +1220,9 @@ async function handleMessage(message, sender) {
     case MESSAGES.CAPTURE_INSTAGRAM:
       return captureInstagram(data);
 
+    case MESSAGES.CAPTURE_TIKTOK:
+      return captureTikTok(data);
+
     case MESSAGES.GET_RETWEETS:
       return getRetweetsHandler(data);
 
@@ -1357,6 +1361,44 @@ async function captureInstagram(data) {
     }
   } catch (error) {
     console.error('[Instagram Filter] Capture error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function captureTikTok(data) {
+  try {
+    console.log('[TikTok Filter] Capturing TikTok video with data:', {
+      post_id: data.post_id || data.tweet_id,
+      user_handle: data.user_handle,
+      has_avatar: !!data.user_avatar,
+      like_count: data.like_count,
+      post_type: data.post_type,
+      user_verified: data.user_verified
+    });
+
+    const categories = await db.getCategories();
+    const autoTags = suggestTags(data.text || '', categories);
+
+    const post = await db.addRetweet({
+      ...data,
+      platform: 'tiktok',
+      auto_tags: autoTags
+    });
+
+    if (post) {
+      console.log('[TikTok Filter] Video saved successfully:', {
+        id: post.id,
+        has_avatar: !!post.user_avatar,
+        like_count: post.like_count,
+        platform: post.platform
+      });
+      updateBadge();
+      return { success: true, data: post };
+    } else {
+      return { success: false, error: 'Duplicate post' };
+    }
+  } catch (error) {
+    console.error('[TikTok Filter] Capture error:', error);
     return { success: false, error: error.message };
   }
 }

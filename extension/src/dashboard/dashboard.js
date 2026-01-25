@@ -680,7 +680,8 @@ function renderResults() {
 
     // Platform detection (default to twitter for backward compatibility)
     const platform = item.platform || 'twitter';
-    const platformBadge = `<span class="platform-badge ${platform}">${platform === 'twitter' ? 'X' : 'IG'}</span>`;
+    const platformLabels = { twitter: 'X', instagram: 'IG', tiktok: 'TT' };
+    const platformBadge = `<span class="platform-badge ${platform}">${platformLabels[platform] || platform.toUpperCase().substring(0, 2)}</span>`;
 
     // Quote tweet rendering
     const quotedTweet = item.quoted_tweet || (item.quoted_text ? {
