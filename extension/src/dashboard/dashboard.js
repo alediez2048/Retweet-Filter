@@ -105,6 +105,7 @@ let allRetweets = [];
 let editingRetweetId = null;
 let editingCategoryName = null;
 let currentTheme = 'dark';
+let currentLayout = 3;
 
 // DOM Elements cache
 const elements = {};
@@ -116,6 +117,7 @@ async function init() {
 
   try {
     loadTheme();
+    loadLayout();
     cacheElements();
     setupEventListeners();
     await loadCategories();
@@ -146,6 +148,44 @@ function toggleTheme() {
   const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
   applyTheme(newTheme);
   localStorage.setItem('rf-theme', newTheme);
+}
+
+// ==================== LAYOUT ====================
+
+function loadLayout() {
+  const savedLayout = localStorage.getItem('rf-layout');
+  if (savedLayout) {
+    currentLayout = parseInt(savedLayout, 10);
+    if (isNaN(currentLayout) || currentLayout < 1 || currentLayout > 6) {
+      currentLayout = 3;
+    }
+  }
+  applyLayout(currentLayout);
+}
+
+function applyLayout(cols) {
+  currentLayout = cols;
+  const resultsList = document.getElementById('resultsList');
+  if (resultsList) {
+    // Remove all existing column classes
+    resultsList.classList.remove('cols-1', 'cols-2', 'cols-3', 'cols-4', 'cols-5', 'cols-6');
+    // Add the new column class
+    resultsList.classList.add(`cols-${cols}`);
+  }
+
+  // Update button active states
+  const layoutSelector = document.getElementById('layoutSelector');
+  if (layoutSelector) {
+    layoutSelector.querySelectorAll('.layout-btn').forEach(btn => {
+      const btnCols = parseInt(btn.dataset.cols, 10);
+      btn.classList.toggle('active', btnCols === cols);
+    });
+  }
+}
+
+function setLayout(cols) {
+  applyLayout(cols);
+  localStorage.setItem('rf-layout', cols.toString());
 }
 
 function cacheElements() {
@@ -181,6 +221,19 @@ function setupEventListeners() {
   const themeToggle = document.getElementById('themeToggle');
   if (themeToggle) {
     themeToggle.addEventListener('click', toggleTheme);
+  }
+
+  // Layout selector
+  const layoutSelector = document.getElementById('layoutSelector');
+  if (layoutSelector) {
+    layoutSelector.querySelectorAll('.layout-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cols = parseInt(btn.dataset.cols, 10);
+        if (cols >= 1 && cols <= 6) {
+          setLayout(cols);
+        }
+      });
+    });
   }
 
   // Navigation
@@ -597,7 +650,7 @@ function renderResults() {
   }
 
   if (elements.emptyState) elements.emptyState.hidden = true;
-  elements.resultsList.className = 'results-list';
+  elements.resultsList.className = `results-list cols-${currentLayout}`;
   updateBulkActions();
 
   elements.resultsList.innerHTML = pageItems.map(item => {
@@ -633,9 +686,9 @@ function renderResults() {
         <input type="checkbox" class="result-checkbox" ${isSelected ? 'checked' : ''}>
         <div class="result-item-header">
           ${hasAvatar
-            ? `<img class="result-avatar-img" src="${escapeHtml(item.user_avatar)}" alt="" data-fallback="${initials}"><div class="result-avatar" style="display:none">${initials}</div>`
-            : `<div class="result-avatar">${initials}</div>`
-          }
+        ? `<img class="result-avatar-img" src="${escapeHtml(item.user_avatar)}" alt="" data-fallback="${initials}"><div class="result-avatar" style="display:none">${initials}</div>`
+        : `<div class="result-avatar">${initials}</div>`
+      }
           <div class="result-content">
             <div class="result-header">
               <span class="result-name">${escapeHtml(item.user_name || item.user_handle)}</span>
@@ -667,11 +720,11 @@ function renderResults() {
         ${item.media && item.media.length > 0 ? `
           <div class="result-media">
             ${item.media.map(m => {
-              if (m.type === 'video' || m.type === 'gif') {
-                return `<div class="media-item video"><img src="${escapeHtml(m.thumb_url)}" alt="${m.type}"><span class="media-badge">${m.type === 'gif' ? 'GIF' : '▶'}</span></div>`;
-              }
-              return m.thumb_url ? `<img src="${escapeHtml(m.thumb_url)}" alt="Media">` : '';
-            }).join('')}
+        if (m.type === 'video' || m.type === 'gif') {
+          return `<div class="media-item video"><img src="${escapeHtml(m.thumb_url)}" alt="${m.type}"><span class="media-badge">${m.type === 'gif' ? 'GIF' : '▶'}</span></div>`;
+        }
+        return m.thumb_url ? `<img src="${escapeHtml(m.thumb_url)}" alt="Media">` : '';
+      }).join('')}
           </div>
         ` : ''}
         ${item.card ? `
