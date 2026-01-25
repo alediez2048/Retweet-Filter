@@ -317,9 +317,9 @@ function renderResults(results) {
     return `
       <div class="result-item" data-id="${item.id}" data-url="${escapeHtml(item.source_url || '')}">
         ${hasAvatar
-          ? `<img class="result-avatar-img" src="${escapeHtml(item.user_avatar)}" alt="" data-fallback="${initials}"><div class="result-avatar" style="display:none">${initials}</div>`
-          : `<div class="result-avatar">${initials}</div>`
-        }
+        ? `<img class="result-avatar-img" src="${escapeHtml(item.user_avatar)}" alt="" data-fallback="${initials}"><div class="result-avatar" style="display:none">${initials}</div>`
+        : `<div class="result-avatar">${initials}</div>`
+      }
         <div class="result-content">
           <div class="result-header">
             <span class="result-name">${escapeHtml(item.user_name || item.user_handle || 'Unknown')}</span>
@@ -435,20 +435,39 @@ function setupEventListeners() {
         // Determine platform
         const isTwitter = tab.url?.includes('x.com') || tab.url?.includes('twitter.com');
         const isInstagram = tab.url?.includes('instagram.com');
+        const isTikTok = tab.url?.includes('tiktok.com');
 
-        if (!tab || (!isTwitter && !isInstagram)) {
-          showToast('Please open X/Twitter or Instagram first');
+        if (!tab || (!isTwitter && !isInstagram && !isTikTok)) {
+          showToast('Please open X/Twitter, Instagram, or TikTok first');
           resetCaptureButton();
           return;
         }
 
         // Platform-specific configuration
-        const platform = isInstagram ? 'instagram' : 'twitter';
-        const messageType = isInstagram ? 'MANUAL_CAPTURE_INSTAGRAM' : 'MANUAL_CAPTURE';
-        const scriptFile = isInstagram ? 'src/content/instagram-capture.js' : 'src/content/capture.js';
-        const styleFile = isInstagram ? 'src/content/instagram-styles.css' : 'src/content/styles.css';
-        const successMessage = isInstagram ? 'Post captured!' : 'Retweet captured!';
-        const failMessage = isInstagram ? 'No post found to capture' : 'No tweet found to capture';
+        let platform, messageType, scriptFile, styleFile, successMessage, failMessage;
+
+        if (isTikTok) {
+          platform = 'tiktok';
+          messageType = 'MANUAL_CAPTURE_TIKTOK';
+          scriptFile = 'src/content/tiktok-capture.js';
+          styleFile = 'src/content/tiktok-styles.css';
+          successMessage = 'TikTok captured!';
+          failMessage = 'No TikTok video found to capture';
+        } else if (isInstagram) {
+          platform = 'instagram';
+          messageType = 'MANUAL_CAPTURE_INSTAGRAM';
+          scriptFile = 'src/content/instagram-capture.js';
+          styleFile = 'src/content/instagram-styles.css';
+          successMessage = 'Post captured!';
+          failMessage = 'No post found to capture';
+        } else {
+          platform = 'twitter';
+          messageType = 'MANUAL_CAPTURE';
+          scriptFile = 'src/content/capture.js';
+          styleFile = 'src/content/styles.css';
+          successMessage = 'Retweet captured!';
+          failMessage = 'No tweet found to capture';
+        }
 
         // Helper function to attempt capture with retries
         async function attemptCapture(maxRetries = 3) {
