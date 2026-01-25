@@ -914,6 +914,22 @@
           window.__lastRetweetTarget = null;
         }
       }
+
+      // Like button click
+      const likeBtn = target.closest('[data-testid="like"]');
+      if (likeBtn) {
+        const tweet = findTweetArticle(likeBtn);
+        if (tweet) {
+          // Add small delay to let UI update (though we don't rely on liked state for capture)
+          setTimeout(() => {
+            const tweetData = extractTweetData(tweet);
+            if (tweetData) {
+              console.log('[Retweet Filter] Capturing liked tweet:', tweetData.tweet_id);
+              queueCapture(tweetData);
+            }
+          }, 200);
+        }
+      }
     }, true);
 
     // Keyboard shortcuts (T for retweet in X)

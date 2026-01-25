@@ -264,61 +264,49 @@
     /**
      * Setup observer for Like buttons
      */
-    function setupMutationObserver() {
-        const observer = new MutationObserver((mutations) => {
-            for (const mutation of mutations) {
-                for (const node of mutation.addedNodes) {
-                    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    /**
+     * Check if element is a like button
+     */
+    function isLikeButton(element) {
+        if (!element) return false;
 
-                    // Look for like buttons
-                    const likeButtons = [
-                        ...(node.matches('like-button-view-model') ? [node] : []),
-                        ...node.querySelectorAll('like-button-view-model'),
-                        ...node.querySelectorAll('#top-level-buttons-computed ytd-toggle-button-renderer') // Legacy
-                    ];
+        // Standard video like button
+        if (element.tagName === 'LIKE-BUTTON-VIEW-MODEL') return true;
+        if (element.closest('like-button-view-model')) return true;
 
-                    for (const btn of likeButtons) {
-                        if (btn.hasAttribute(PROCESSED_MARKER)) continue;
+        // Shorts like button
+        if (element.id === 'like-button' || element.closest('#like-button')) return true;
 
-                        btn.setAttribute(PROCESSED_MARKER, 'true');
+        // Legacy / general check
+        const ariaLabel = element.getAttribute('aria-label') || '';
+        if (ariaLabel.toLowerCase().includes('like this video')) return true;
 
-                        btn.addEventListener('click', () => {
-                            // Wait slightly for UI to update (aria-pressed state)
-                            setTimeout(() => {
-                                // Check if we are liking (not unliking)
-                                // YouTube's new UI doesn't always expose aria-pressed easily on the container
-                                // We'll capture on every click for now, backend handles dupes
-                                // Ideally we check if class contains 'style-default-active' or similar
-
-                                const isLiked = btn.querySelector('.yt-spec-button-shape-next--mono.yt-spec-button-shape-next--filled') || // New UI filled icon
-                                    btn.querySelector('button[aria-pressed="true"]');
-
-                                // If we can't determine state, assume it's a like action
-                                if (isLiked || true) {
-                                    captureVideo();
-                                }
-                            }, 200);
-                        });
-                    }
-                }
-            }
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-
-        // Process existing buttons
-        const existingButtons = document.querySelectorAll('like-button-view-model');
-        for (const btn of existingButtons) {
-            if (!btn.hasAttribute(PROCESSED_MARKER)) {
-                btn.setAttribute(PROCESSED_MARKER, 'true');
-                btn.addEventListener('click', () => {
-                    setTimeout(() => captureVideo(), 200);
-                });
-            }
+        // Closest button with like label
+        const btn = element.closest('button');
+        if (btn) {
+            const label = btn.getAttribute('aria-label') || '';
+            if (label.toLowerCase().includes('like this video')) return true;
         }
+
+        return false;
+    }
+
+    /**
+     * Setup global click listener
+     */
+    function setupClickListener() {
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+
+            if (isLikeButton(target)) {
+                log('Like button clicked!');
+
+                // Delay capture to allow UI update
+                setTimeout(() => {
+                    captureVideo();
+                }, 200);
+            }
+        }, true);
     }
 
     function setupMessageListener() {
@@ -334,7 +322,7 @@
 
     function init() {
         log('Initializing capture system');
-        setupMutationObserver();
+        setupClickListener();
         setupMessageListener();
         log('Ready');
     }

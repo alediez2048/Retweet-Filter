@@ -4,7 +4,7 @@
  * v1.3.3 - Improved extraction with extensive debugging
  */
 
-(function() {
+(function () {
   'use strict';
 
   const SCRIPT_VERSION = '1.4.0';
@@ -316,9 +316,9 @@
       for (const span of spans) {
         const text = span.textContent?.trim();
         if (text && text.length > 20 &&
-            !text.includes('likes') &&
-            !text.includes('views') &&
-            !text.match(/^\d+ (likes?|views?|comments?)/)) {
+          !text.includes('likes') &&
+          !text.includes('views') &&
+          !text.match(/^\d+ (likes?|views?|comments?)/)) {
           log('Caption from list item:', text.substring(0, 50) + '...');
           return text;
         }
@@ -330,8 +330,8 @@
     for (const span of autoSpans) {
       const text = span.textContent?.trim();
       if (text && text.length > 15 &&
-          !text.includes('likes') &&
-          !text.match(/^\d+[KMB]?\s*(likes?|views?)/i)) {
+        !text.includes('likes') &&
+        !text.match(/^\d+[KMB]?\s*(likes?|views?)/i)) {
         log('Caption from span[dir=auto]:', text.substring(0, 50) + '...');
         return text;
       }
@@ -733,6 +733,29 @@
   }
 
   /**
+   * Check if element is a like button
+   */
+  function isLikeButton(element) {
+    if (!element) return false;
+
+    const checkLabel = (el) => {
+      const label = el?.getAttribute?.('aria-label')?.toLowerCase() || '';
+      return label.includes('like') || label.includes('me gusta') || label.includes('unlike') || label.includes('unlove');
+    };
+
+    if (checkLabel(element)) return true;
+    if (element.tagName === 'svg' && checkLabel(element)) return true;
+
+    const svg = element.querySelector?.('svg');
+    if (svg && checkLabel(svg)) return true;
+
+    const parent = element.closest?.('button, div[role="button"]');
+    if (parent && checkLabel(parent)) return true;
+
+    return false;
+  }
+
+  /**
    * Check if element is a save button
    */
   function isSaveButton(element) {
@@ -763,11 +786,15 @@
       const target = event.target;
 
       if (isSaveButton(target) ||
-          isSaveButton(target.closest('button')) ||
-          isSaveButton(target.closest('div[role="button"]')) ||
-          isSaveButton(target.closest('svg')?.parentElement)) {
+        isSaveButton(target.closest('button')) ||
+        isSaveButton(target.closest('div[role="button"]')) ||
+        isSaveButton(target.closest('svg')?.parentElement) ||
+        isLikeButton(target) ||
+        isLikeButton(target.closest('button')) ||
+        isLikeButton(target.closest('div[role="button"]')) ||
+        isLikeButton(target.closest('svg')?.parentElement)) {
 
-        log('Save button clicked!');
+        log('Save/Like button clicked!');
 
         // Find the post container
         const container = findPostContainer(target);

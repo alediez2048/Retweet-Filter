@@ -4,7 +4,7 @@
  * v1.0.0
  */
 
-(function() {
+(function () {
   'use strict';
 
   const SCRIPT_VERSION = '1.0.0';
@@ -691,6 +691,22 @@
   }
 
   /**
+   * Check if element is a like button
+   */
+  function isLikeButton(element) {
+    if (!element) return false;
+
+    // Check data-e2e attribute
+    if (element.getAttribute('data-e2e') === 'like-icon') return true;
+
+    // Check aria-label
+    const label = element.getAttribute('aria-label');
+    if (label && label.toLowerCase().includes('like')) return true;
+
+    return false;
+  }
+
+  /**
    * Check if element is a favorite/save button
    */
   function isFavoriteButton(element) {
@@ -700,11 +716,11 @@
       const label = el?.getAttribute?.('aria-label')?.toLowerCase() || '';
       const dataE2e = el?.getAttribute?.('data-e2e')?.toLowerCase() || '';
       return label.includes('favorite') ||
-             label.includes('save') ||
-             label.includes('bookmark') ||
-             label.includes('collect') ||
-             dataE2e.includes('favorite') ||
-             dataE2e.includes('undefined-icon'); // TikTok sometimes uses this for save
+        label.includes('save') ||
+        label.includes('bookmark') ||
+        label.includes('collect') ||
+        dataE2e.includes('favorite') ||
+        dataE2e.includes('undefined-icon'); // TikTok sometimes uses this for save
     };
 
     if (checkLabel(element)) return true;
@@ -737,11 +753,15 @@
       const target = event.target;
 
       if (isFavoriteButton(target) ||
-          isFavoriteButton(target.closest('button')) ||
-          isFavoriteButton(target.closest('div[role="button"]')) ||
-          isFavoriteButton(target.closest('svg')?.parentElement)) {
+        isFavoriteButton(target.closest('button')) ||
+        isFavoriteButton(target.closest('div[role="button"]')) ||
+        isFavoriteButton(target.closest('svg')?.parentElement) ||
+        isLikeButton(target) ||
+        isLikeButton(target.closest('button')) ||
+        isLikeButton(target.closest('div[role="button"]')) ||
+        isLikeButton(target.closest('span[data-e2e="like-icon"]'))) {
 
-        log('Favorite/Save button clicked!');
+        log('Favorite/Like button clicked!');
 
         // Find the video container
         const container = findVideoContainer(target);
