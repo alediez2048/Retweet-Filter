@@ -51,12 +51,43 @@ Save these values for Step 3 (Vercel deployment).
 
 ## Step 2: Configure OAuth (Optional)
 
-If you want Google/GitHub OAuth:
+If you want Google OAuth, follow these detailed steps:
 
-1. Go to Supabase Dashboard > Authentication > Providers
-2. Enable Google/GitHub
-3. Add OAuth credentials
-4. Add redirect URL: `https://your-app.vercel.app/auth/callback`
+### 2.1 Google OAuth Setup
+
+1. **Create Google OAuth Credentials:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select existing one
+   - Go to **APIs & Services** > **Credentials**
+   - Click **Create Credentials** > **OAuth client ID**
+   - Application type: **Web application**
+   - Name: "Content Filter" (or your app name)
+   - **Authorized JavaScript origins** (required):
+     - Add: `https://jmzletrzuwhegfwhaned.supabase.co`
+   - **Authorized redirect URIs**: 
+     - For production: `https://jmzletrzuwhegfwhaned.supabase.co/auth/v1/callback`
+     - For local dev (optional): `http://localhost:54321/auth/v1/callback`
+   - Click **Create**
+   - **Copy the Client ID and Client Secret**
+
+2. **Configure in Supabase:**
+   - Go to [Supabase Dashboard](https://supabase.com/dashboard)
+   - Select your project: **Bookmark Chrome Extension**
+   - Go to **Authentication** > **Providers**
+   - Find **Google** and click to expand
+   - Toggle **Enable Google provider**
+   - Paste your **Client ID** and **Client Secret**
+   - Click **Save**
+
+### 2.2 Update Redirect URLs
+
+After deploying to Vercel (Step 3), come back and add your production callback URL:
+
+1. In Supabase Dashboard > **Authentication** > **URL Configuration**
+2. Add to **Redirect URLs**: `https://your-app.vercel.app/auth/callback`
+3. Click **Save**
+
+**Note:** For local development, the redirect URL `http://localhost:3000/auth/callback` should already work if you configured it in `supabase/config.toml`.
 
 ## Step 3: Deploy to Vercel
 

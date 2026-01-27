@@ -323,9 +323,18 @@ skip_nonce_check = false
 email_optional = false
 
 [auth.external.github]
-enabled = true
+enabled = false
 client_id = "env(GITHUB_CLIENT_ID)"
 secret = "env(GITHUB_CLIENT_SECRET)"
+redirect_uri = ""
+url = ""
+skip_nonce_check = false
+email_optional = false
+
+[auth.external.facebook]
+enabled = false
+client_id = "env(FACEBOOK_CLIENT_ID)"
+secret = "env(FACEBOOK_CLIENT_SECRET)"
 redirect_uri = ""
 url = ""
 skip_nonce_check = false
