@@ -16,7 +16,9 @@
     "https://www.tiktok.com/*",
     "https://tiktok.com/*",
     "https://www.youtube.com/*",
-    "https://youtube.com/*"
+    "https://youtube.com/*",
+    "http://localhost:3000/*",
+    "http://localhost:54321/*"
   ],
   "optional_permissions": [
     "notifications"

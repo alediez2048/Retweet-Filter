@@ -1293,6 +1293,49 @@ async function handleMessage(message, sender) {
 
 // ==================== MESSAGE HANDLERS ====================
 
+// Simple Supabase sync function
+async function syncPostToSupabase(post) {
+  try {
+    const { supabase_session } = await chrome.storage.local.get('supabase_session');
+    if (!supabase_session) {
+      return; // Not authenticated, skip silently
+    }
+
+    const SUPABASE_URL = 'http://localhost:54321'; // Will be updated for production
+    const SUPABASE_ANON_KEY = 'your-anon-key'; // Will be updated for production
+
+    await fetch(`${SUPABASE_URL}/rest/v1/posts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabase_session.access_token}`,
+        'apikey': SUPABASE_ANON_KEY,
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        user_id: supabase_session.user.id,
+        post_id: post.tweet_id || post.post_id,
+        platform: post.platform || 'twitter',
+        user_handle: post.user_handle,
+        user_name: post.user_name,
+        user_avatar: post.user_avatar,
+        text: post.text,
+        media: post.media || [],
+        like_count: post.like_count || 0,
+        view_count: post.view_count || 0,
+        tags: post.tags || [],
+        auto_tags: post.auto_tags || [],
+        captured_at: post.captured_at,
+        source: post.source || 'browser',
+        source_url: post.source_url
+      })
+    });
+  } catch (error) {
+    console.error('[Sync] Sync error:', error);
+    // Don't fail the capture if sync fails
+  }
+}
+
 async function captureRetweet(data) {
   try {
     console.log('[Retweet Filter] Capturing retweet with data:', {
@@ -1322,6 +1365,9 @@ async function captureRetweet(data) {
         like_count: retweet.like_count,
         retweet_count: retweet.retweet_count
       });
+      // NEW: Sync in background (don't await - fire and forget)
+      syncPostToSupabase(retweet).catch(console.error);
+      
       updateBadge();
       return { success: true, data: retweet };
     } else {
@@ -1360,6 +1406,9 @@ async function captureInstagram(data) {
         like_count: post.like_count,
         platform: post.platform
       });
+      // NEW: Sync in background
+      syncPostToSupabase(post).catch(console.error);
+      
       updateBadge();
       return { success: true, data: post };
     } else {
@@ -1398,6 +1447,9 @@ async function captureTikTok(data) {
         like_count: post.like_count,
         platform: post.platform
       });
+      // NEW: Sync in background
+      syncPostToSupabase(post).catch(console.error);
+      
       updateBadge();
       return { success: true, data: post };
     } else {
@@ -1431,6 +1483,9 @@ async function captureYouTube(data) {
         id: post.id,
         platform: post.platform
       });
+      // NEW: Sync in background
+      syncPostToSupabase(post).catch(console.error);
+      
       updateBadge();
       return { success: true, data: post };
     } else {

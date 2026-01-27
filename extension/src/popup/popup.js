@@ -626,5 +626,34 @@ function showToast(message) {
   setTimeout(() => toast.remove(), 2000);
 }
 
+// Auth section handling
+function initAuth() {
+  const authSection = document.getElementById('authSection');
+  const loginBtn = document.getElementById('loginBtn');
+  const authStatus = document.getElementById('authStatus');
+  
+  if (!authSection || !loginBtn) return;
+  
+  authSection.style.display = 'block';
+  
+  // Check auth status
+  chrome.storage.local.get('supabase_session', (result) => {
+    if (result.supabase_session) {
+      loginBtn.textContent = '✓ Syncing Enabled';
+      if (authStatus) {
+        authStatus.textContent = 'Connected to web dashboard';
+      }
+    }
+  });
+  
+  // Login button handler
+  loginBtn.addEventListener('click', () => {
+    chrome.tabs.create({ url: 'http://localhost:3000/login' });
+  });
+}
+
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+  initAuth();
+});

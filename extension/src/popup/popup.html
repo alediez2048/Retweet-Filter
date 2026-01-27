@@ -83,7 +83,28 @@
         Capture Current
       </button>
     </div>
+
+    <!-- Auth Section -->
+    <div id="authSection" class="auth-section" style="display: none;">
+      <button id="loginBtn" class="primary-btn">
+        🔐 Sign In to Sync
+      </button>
+      <div id="authStatus" class="auth-status"></div>
+    </div>
   </div>
+
+  <style>
+    .auth-section {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #2f3336;
+    }
+    .auth-status {
+      font-size: 12px;
+      color: #71767a;
+      margin-top: 4px;
+    }
+  </style>
 
   <script src="popup.js"></script>
 </body>
