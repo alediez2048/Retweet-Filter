@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 
 export async function getUserStats() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
@@ -17,7 +17,7 @@ export async function getPosts(filters?: {
   tags?: string[]
   limit?: number
 }) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
   
@@ -45,7 +45,7 @@ export async function searchPosts(
     tags?: string[]
   }
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
