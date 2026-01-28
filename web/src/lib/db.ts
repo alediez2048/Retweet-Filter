@@ -5,11 +5,22 @@ export async function getUserStats() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const { data } = await supabase.rpc('get_user_stats', {
-    stats_user_id: user.id
-  })
+  try {
+    const { data, error } = await supabase.rpc('get_user_stats', {
+      stats_user_id: user.id
+    })
 
-  return data
+    if (error) {
+      console.error('Error fetching stats:', error)
+      // Return default stats if RPC fails
+      return { total: 0, today: 0, by_platform: {} }
+    }
+
+    return data || { total: 0, today: 0, by_platform: {} }
+  } catch (error) {
+    console.error('Error in getUserStats:', error)
+    return { total: 0, today: 0, by_platform: {} }
+  }
 }
 
 export async function getPosts(filters?: {
@@ -21,21 +32,33 @@ export async function getPosts(filters?: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
   
-  let query = supabase
-    .from('posts')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('captured_at', { ascending: false })
+  try {
+    let query = supabase
+      .from('posts')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('captured_at', { ascending: false })
 
-  if (filters?.platforms) {
-    query = query.in('platform', filters.platforms)
+    if (filters?.platforms) {
+      query = query.in('platform', filters.platforms)
+    }
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit)
+    }
+
+    const { data, error } = await query
+    
+    if (error) {
+      console.error('Error fetching posts:', error)
+      return { data: [], error }
+    }
+
+    return { data: data || [], error: null }
+  } catch (error) {
+    console.error('Error in getPosts:', error)
+    return { data: [], error }
   }
-
-  if (filters?.limit) {
-    query = query.limit(filters.limit)
-  }
-
-  return query
 }
 
 export async function searchPosts(

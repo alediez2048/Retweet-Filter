@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   }
 
   const stats = await getUserStats()
-  const { data: posts } = await getPosts({ limit: 20 })
+  const { data: posts = [] } = await getPosts({ limit: 20 })
 
   return (
     <div className="p-8">
@@ -20,24 +20,31 @@ export default async function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 mb-8">
-        {Object.entries(stats.by_platform || {}).map(([platform, count]) => {
-          const config = PLATFORM_CONFIG[platform as keyof typeof PLATFORM_CONFIG]
-          if (!config) return null
-          return (
-            <div key={platform} className="bg-white rounded-lg p-6 shadow">
-              <div className="text-3xl mb-2">{config.icon}</div>
-              <div className="text-2xl font-bold">{count as number}</div>
-              <div className="text-gray-600">{config.label}</div>
-            </div>
-          )
-        })}
+        {Object.keys(stats.by_platform || {}).length > 0 ? (
+          Object.entries(stats.by_platform || {}).map(([platform, count]) => {
+            const config = PLATFORM_CONFIG[platform as keyof typeof PLATFORM_CONFIG]
+            if (!config) return null
+            return (
+              <div key={platform} className="bg-white rounded-lg p-6 shadow">
+                <div className="text-3xl mb-2">{config.icon}</div>
+                <div className="text-2xl font-bold">{count as number}</div>
+                <div className="text-gray-600">{config.label}</div>
+              </div>
+            )
+          })
+        ) : (
+          <div className="col-span-4 bg-white rounded-lg p-6 shadow text-center text-gray-500">
+            No posts yet. Start capturing content with the extension!
+          </div>
+        )}
       </div>
 
       {/* Recent Posts */}
       <div>
         <h2 className="text-2xl font-bold mb-4">Recent</h2>
         <div className="space-y-4">
-          {posts?.map(post => {
+          {posts && posts.length > 0 ? (
+            posts.map(post => {
             const config = PLATFORM_CONFIG[post.platform as keyof typeof PLATFORM_CONFIG]
             if (!config) return null
             return (
@@ -54,7 +61,12 @@ export default async function DashboardPage() {
                 </div>
               </div>
             )
-          })}
+          })
+          ) : (
+            <div className="bg-white rounded-lg p-8 shadow text-center text-gray-500">
+              No posts yet. Start capturing content with the extension!
+            </div>
+          )}
         </div>
       </div>
     </div>
