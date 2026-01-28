@@ -6,8 +6,8 @@
 
 1. **Download the extension**
    ```bash
-   git clone https://github.com/yourusername/retweet-filter.git
-   cd retweet-filter
+   git clone https://github.com/alediez2048/Bookmark-Chrome-Extension.git
+   cd Bookmark-Chrome-Extension
    ```
 
 2. **Open Chrome Extensions**
@@ -135,7 +135,7 @@ To sync across devices:
 
 ### From Source
 ```bash
-cd retweet-filter
+cd Bookmark-Chrome-Extension
 git pull origin main
 ```
 Then go to `chrome://extensions` and click the refresh icon on Retweet Filter.
@@ -151,5 +151,5 @@ Then go to `chrome://extensions` and click the refresh icon on Retweet Filter.
 
 ## Support
 
-- Report issues: [GitHub Issues](https://github.com/yourusername/retweet-filter/issues)
-- Documentation: [GitHub Wiki](https://github.com/yourusername/retweet-filter/wiki)
+- Report issues: [GitHub Issues](https://github.com/alediez2048/Bookmark-Chrome-Extension/issues)
+- Documentation: [GitHub Wiki](https://github.com/alediez2048/Bookmark-Chrome-Extension/wiki)

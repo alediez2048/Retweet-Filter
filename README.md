@@ -24,8 +24,8 @@ A privacy-first Chrome extension that captures, searches, and organizes your ret
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/alediez2048/Retweet-Filter.git
-   cd Retweet-Filter
+   git clone https://github.com/alediez2048/Bookmark-Chrome-Extension.git
+   cd Bookmark-Chrome-Extension
    ```
 
 2. Generate icons (optional, placeholders included):
